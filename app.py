@@ -204,7 +204,7 @@ if st.session_state.df is not None:
                     fig_nat.update_layout(
                         height=250,
                         margin=dict(t=0, b=0, l=0, r=0),
-                        showlegend=True,
+                        showlegend=False,
                         legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
                     )
                     st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
@@ -242,7 +242,7 @@ if st.session_state.df is not None:
                     fig_stud.update_layout(
                         height=250,
                         margin=dict(t=0, b=0, l=0, r=0),
-                        showlegend=True,
+                        showlegend=False,
                         legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
                     )
                     st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
