@@ -250,8 +250,6 @@ if st.session_state.df is not None:
 
             # Rechte Spalte: Kommentarfeld
             with comment_col:
-                st.markdown("### 📝 Ihr Kommentar")
-                
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
                 
