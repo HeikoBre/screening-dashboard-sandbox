@@ -163,6 +163,9 @@ if st.session_state.df is not None:
             with col1: st.markdown(f"**_{gene}_**")
             with col2: st.markdown(disease)
             
+            # Vertikaler Strich unter Gen/Erkrankung
+            st.markdown("---")
+            
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
             stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
@@ -231,17 +234,19 @@ if st.session_state.df is not None:
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
                     <span style='background-color: #ACF3AE; padding: 2px 8px; border-radius: 3px; margin-left: 10px; font-size: 11px;'>Ja</span>
                     <span style='background-color: #C43D5A; color: white; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Nein</span>
-                    <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann ich nicht beantworten</span>
+                    <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann nicht beantworten</span>
                 </div>
                 """, unsafe_allow_html=True)
 
             # Rechte Spalte: Kommentarfeld
             with comment_col:
+                st.markdown("### 📝 Ihr Kommentar")
+                
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
                 
                 user_comment = st.text_area(
-                    f"Notizen zu **_{gene}_**",
+                    f"Notizen zu {gene}",
                     value=current_comment,
                     height=300,
                     key=f'comment_input_{gene}_{tab_idx}',
