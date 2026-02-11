@@ -170,52 +170,8 @@ if st.session_state.df is not None:
 
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             
-            # Statt: viz_col, comment_col = st.columns([2, 1])
-viz_col, comment_col = st.columns([2, 1])
-
-with viz_col:
-    ...
-    
-with comment_col:
-    # Wrapper mit linkem Rahmen für die gesamte Kommentarspalte
-    st.markdown(
-        """
-        <div style="
-            border-left: 1px solid #e0e0e0;
-            padding-left: 12px;
-            height: 100%;
-        ">
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### 📝 Ihr Kommentar")
-    current_comment = st.session_state.user_comments.get(gene, '')
-
-    user_comment = st.text_area(
-        f"Notizen zu **_{gene}_**",
-        value=current_comment,
-        height=300,
-        key=f'comment_input_{gene}_{tab_idx}',
-        placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
-    )
-
-    col_save, col_clear = st.columns(2)
-    with col_save:
-        if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}', use_container_width=True):
-            st.session_state.user_comments[gene] = user_comment
-            st.rerun()
-    with col_clear:
-        if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}', use_container_width=True):
-            st.session_state.user_comments[gene] = ''
-            st.rerun()
-
-    if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
-        st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
-
-    # Div schließen
-    st.markdown("</div>", unsafe_allow_html=True)
-
+            # Hauptlayout: Links Abbildungen, Rechts Kommentarfeld
+            viz_col, comment_col = st.columns([2, 1])
             
             with viz_col:
                 left_col, right_col = st.columns(2)
@@ -281,11 +237,13 @@ with comment_col:
 
             # Rechte Spalte: Kommentarfeld
             with comment_col:
+                st.markdown("### 📝 Ihr Kommentar")
+                
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
                 
                 user_comment = st.text_area(
-                    f"Notizen zu **_{gene}_**",  
+                    f"Notizen zu {gene}",
                     value=current_comment,
                     height=300,
                     key=f'comment_input_{gene}_{tab_idx}',
