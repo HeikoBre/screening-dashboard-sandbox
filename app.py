@@ -99,7 +99,7 @@ if st.session_state.summary_df is not None:
     export_df = st.session_state.summary_df.copy()
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # User-Kommentare hinzufügen - neue Methode
+    # User-Kommentare hinzufügen
     reviewer_comments = []
     for gene in export_df['Gen']:
         comment = st.session_state.user_comments.get(gene, '')
@@ -208,19 +208,17 @@ if st.session_state.df is not None:
             </div>
             """, unsafe_allow_html=True)
 
-            # Reviewer-Kommentar hinzufügen - VERBESSERT
+            # Reviewer-Kommentar hinzufügen - FIXED
             st.markdown("### 📝 Ihr Kommentar")
             
-            # Initialisiere Kommentar-Key falls nicht vorhanden
-            comment_key = f'comment_input_{gene}'
-            if comment_key not in st.session_state:
-                st.session_state[comment_key] = st.session_state.user_comments.get(gene, '')
+            # Hole den aktuellen Kommentar
+            current_comment = st.session_state.user_comments.get(gene, '')
             
             user_comment = st.text_area(
                 f"Notizen zu {gene}",
-                value=st.session_state[comment_key],
+                value=current_comment,
                 height=100,
-                key=comment_key,
+                key=f'comment_input_{gene}_{tab_idx}',
                 placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
             )
             
@@ -228,12 +226,10 @@ if st.session_state.df is not None:
             with col_save:
                 if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = user_comment
-                    st.session_state[comment_key] = user_comment
                     st.success('✅')
             with col_clear:
                 if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = ''
-                    st.session_state[comment_key] = ''
                     st.rerun()
             with col_status:
                 if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
