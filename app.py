@@ -115,6 +115,15 @@ def generate_csv():
 if st.session_state.summary_df is not None:
     st.sidebar.markdown("### 📥 Export")
     
+    # DEBUG: Zeige alle gespeicherten Kommentare
+    st.sidebar.markdown("**🔍 Debug - Gespeicherte Kommentare:**")
+    if st.session_state.user_comments:
+        for gene, comment in st.session_state.user_comments.items():
+            if comment.strip():
+                st.sidebar.caption(f"✓ {gene}: {comment[:30]}...")
+    else:
+        st.sidebar.caption("Noch keine Kommentare")
+    
     # Statistik über Kommentare
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
@@ -239,7 +248,8 @@ if st.session_state.df is not None:
             with col_save:
                 if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = user_comment
-                    st.success('✅ Gespeichert!')
+                    st.success(f'✅ Gespeichert für {gene}!')
+                    st.write(f"DEBUG: Gespeichert in session_state: '{user_comment[:50]}...'")
             with col_clear:
                 if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = ''
