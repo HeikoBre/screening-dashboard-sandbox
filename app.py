@@ -199,7 +199,7 @@ if st.session_state.df is not None:
                         marker=dict(colors=colors),
                         textinfo='percent',
                         textfont_size=12,
-                        hole=0.3  # Donut-Chart
+                        hole=0.5  # Donut-Chart
                     )])
                     fig_nat.update_layout(
                         height=250,
@@ -237,7 +237,7 @@ if st.session_state.df is not None:
                         marker=dict(colors=colors),
                         textinfo='percent',
                         textfont_size=12,
-                        hole=0.3  # Donut-Chart
+                        hole=0.5  # Donut-Chart
                     )])
                     fig_stud.update_layout(
                         height=250,
