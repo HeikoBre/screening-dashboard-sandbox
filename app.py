@@ -177,7 +177,7 @@ if st.session_state.df is not None:
                 st.markdown(
                         """
                         <div style="
-                            border-left: 1px solid #e0e0e0;
+                            border-left: 2px solid #999;
                             height: 100%;
                             margin-left: 0;
                             margin-right: 0;
