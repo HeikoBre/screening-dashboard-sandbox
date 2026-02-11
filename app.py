@@ -93,21 +93,14 @@ else:
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# Sidebar Export
-if st.session_state.summary_df is not None:
-    st.sidebar.markdown("### 📥 Export")
-    
-    # Debug: Zeige gespeicherte Kommentare
-    if st.session_state.user_comments:
-        st.sidebar.caption(f"💬 {len(st.session_state.user_comments)} Reviewer-Kommentar(e) gespeichert")
-    
-    # CSV mit Datum und User-Kommentaren
+# Funktion zum Generieren der CSV (wird erst beim Download aufgerufen)
+def generate_csv():
     today = datetime.now().strftime("%Y%m%d")
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # User-Kommentare hinzufügen
+    # User-Kommentare hinzufügen - HIER werden die aktuellen Kommentare geholt
     reviewer_comments = []
     for gene in export_df['Gen']:
         comment = st.session_state.user_comments.get(gene, '')
@@ -116,13 +109,25 @@ if st.session_state.summary_df is not None:
     export_df['Reviewer_Kommentar'] = reviewer_comments
     
     export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-    csv_data = csv_buffer.getvalue().encode('utf-8-sig')
+    return csv_buffer.getvalue().encode('utf-8-sig')
+
+# Sidebar Export
+if st.session_state.summary_df is not None:
+    st.sidebar.markdown("### 📥 Export")
     
+    # Statistik über Kommentare
+    num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
+    total_genes = len(st.session_state.genes)
+    st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene kommentiert")
+    
+    # Download-Button der die CSV dynamisch generiert
+    today = datetime.now().strftime("%Y%m%d")
     st.sidebar.download_button(
         label=f'📥 Download Zusammenfassung_{today}.csv',
-        data=csv_data,
+        data=generate_csv(),
         file_name=f'gNBS_Expertenreview_Zusammenfassung_{today}.csv',
-        mime='text/csv'
+        mime='text/csv',
+        key='download_csv'
     )
     
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
@@ -234,7 +239,7 @@ if st.session_state.df is not None:
             with col_save:
                 if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = user_comment
-                    st.success('✅')
+                    st.success('✅ Gespeichert!')
             with col_clear:
                 if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = ''
