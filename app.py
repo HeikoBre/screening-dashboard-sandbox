@@ -171,7 +171,20 @@ if st.session_state.df is not None:
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             
             # Hauptlayout: Links Abbildungen, Rechts Kommentarfeld
-            viz_col, comment_col = st.columns([2, 1])
+            viz_col, sep_col, comment_col = st.columns([2, 0.05, 1])
+
+            with sep_col:
+                st.markdown(
+                        """
+                        <div style="
+                            border-left: 1px solid #e0e0e0;
+                            height: 100%;
+                            margin-left: 0;
+                            margin-right: 0;
+                        "></div>
+                        """,
+                        unsafe_allow_html=True
+                    )
             
             with viz_col:
                 left_col, right_col = st.columns(2)
