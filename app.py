@@ -231,7 +231,7 @@ if st.session_state.df is not None:
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
                     <span style='background-color: #ACF3AE; padding: 2px 8px; border-radius: 3px; margin-left: 10px; font-size: 11px;'>Ja</span>
                     <span style='background-color: #C43D5A; color: white; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Nein</span>
-                    <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann nicht beantworten</span>
+                    <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann ich nicht beantworten</span>
                 </div>
                 """, unsafe_allow_html=True)
 
