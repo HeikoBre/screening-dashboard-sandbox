@@ -201,7 +201,7 @@ if st.session_state.df is not None:
                     ja_pct = ja_count / n_total * 100 if n_total > 0 else 0
                     
                     st.caption(f'**Gesamt:** n={n_total}')
-                    st.caption(f'Ja: {ja_count} | Nein: {nein_count} | Weiß nicht: {weiss_nicht_count}')
+                    st.caption(f'Ja: {ja_count} | Nein: {nein_count} | NA: {weiss_nicht_count}')
                     st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}')
 
                 with right_col:
@@ -225,7 +225,7 @@ if st.session_state.df is not None:
                     ja_pct_stud = ja_count_stud / n_total_stud * 100 if n_total_stud > 0 else 0
                     
                     st.caption(f'**Gesamt:** n={n_total_stud}')
-                    st.caption(f'Ja: {ja_count_stud} | Nein: {nein_count_stud} | Weiß nicht: {weiss_nicht_count_stud}')
+                    st.caption(f'Ja: {ja_count_stud} | Nein: {nein_count_stud} | NA: {weiss_nicht_count_stud}')
                     st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}')
 
                 # Legende direkt unter den Abbildungen
