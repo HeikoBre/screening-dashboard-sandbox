@@ -164,7 +164,7 @@ if st.session_state.df is not None:
             with col2: st.markdown(disease)
             
             # Vertikaler Strich unter Gen/Erkrankung mit reduziertem Abstand
-            st.markdown("<hr style='margin-top: 5px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin-top: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
             
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
@@ -240,13 +240,11 @@ if st.session_state.df is not None:
 
             # Rechte Spalte: Kommentarfeld
             with comment_col:
-                st.markdown("### 📝 Ihr Kommentar")
-                
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
                 
                 user_comment = st.text_area(
-                    f"Notizen zu {gene}",
+                    f"Notizen zu **_{gene}_**",
                     value=current_comment,
                     height=300,
                     key=f'comment_input_{gene}_{tab_idx}',
