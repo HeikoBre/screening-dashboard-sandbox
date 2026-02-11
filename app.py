@@ -269,18 +269,9 @@ if st.session_state.df is not None:
 
             # Rechte Spalte: Kommentarfeld mit vertikaler Trennlinie (OPTION 2)
             with comment_col:
-                # Überschrift: Notiz zu <Gen> mit kursivem Gen
-                        st.markdown(
-                            f"<h4 style='margin-top: 0px; margin-bottom: 10px;'>Notiz zu <em>{gene}</em></h4>",
-                            unsafe_allow_html=True
-                        )
-                    
-                        # Rahmen für den Bereich
-                        st.markdown(
-                            "<div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>",
-                            unsafe_allow_html=True
-                        )
-
+                st.markdown("""
+                <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
+                """, unsafe_allow_html=True)
                 
                 st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Notizen</h4>", unsafe_allow_html=True)
                 
