@@ -89,22 +89,29 @@ else:
 if st.session_state.summary_df is not None:
     st.sidebar.markdown("### 📥 Export")
     
+    # Debug: Zeige gespeicherte Kommentare
+    if st.session_state.user_comments:
+        st.sidebar.caption(f"💬 {len(st.session_state.user_comments)} Kommentar(e) gespeichert")
+    
     # CSV mit Datum und User-Kommentaren
     today = datetime.now().strftime("%Y%m%d")
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # User-Kommentare direkt aus session_state hinzufügen
-    export_df['Reviewer_Kommentar'] = export_df['Gen'].apply(
-        lambda gene: st.session_state.user_comments.get(gene, '')
-    )
+    # User-Kommentare hinzufügen - neue Methode
+    reviewer_comments = []
+    for gene in export_df['Gen']:
+        comment = st.session_state.user_comments.get(gene, '')
+        reviewer_comments.append(comment)
     
-    export_df.to_csv(csv_buffer, index=False)
-    csv_data = csv_buffer.getvalue().encode('utf-8')
+    export_df['Reviewer_Kommentar'] = reviewer_comments
+    
+    export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+    csv_data = csv_buffer.getvalue().encode('utf-8-sig')
     
     st.sidebar.download_button(
-        label=f'Download Zusammenfassung_{today}.csv',
+        label=f'📥 Download Zusammenfassung_{today}.csv',
         data=csv_data,
         file_name=f'gNBS_Expertenreview_Zusammenfassung_{today}.csv',
         mime='text/csv'
@@ -112,10 +119,10 @@ if st.session_state.summary_df is not None:
     
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     
-    # Vorschau-Tabelle mit Kommentaren
+    # Vorschau mit Kommentar-Indikator
     preview_df = st.session_state.summary_df.copy()
-    preview_df['Kommentar'] = preview_df['Gen'].apply(
-        lambda gene: '✅' if st.session_state.user_comments.get(gene, '') else ''
+    preview_df['💬'] = preview_df['Gen'].apply(
+        lambda gene: '✓' if st.session_state.user_comments.get(gene, '').strip() else ''
     )
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
@@ -201,26 +208,36 @@ if st.session_state.df is not None:
             </div>
             """, unsafe_allow_html=True)
 
-            # Reviewer-Kommentar hinzufügen
+            # Reviewer-Kommentar hinzufügen - VERBESSERT
             st.markdown("### 📝 Ihr Kommentar")
-            current_comment = st.session_state.user_comments.get(gene, '')
+            
+            # Initialisiere Kommentar-Key falls nicht vorhanden
+            comment_key = f'comment_input_{gene}'
+            if comment_key not in st.session_state:
+                st.session_state[comment_key] = st.session_state.user_comments.get(gene, '')
+            
             user_comment = st.text_area(
                 f"Notizen zu {gene}",
-                value=current_comment,
+                value=st.session_state[comment_key],
                 height=100,
-                key=f'comment_{gene}_{tab_idx}',
+                key=comment_key,
                 placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
             )
             
-            col_save, col_clear = st.columns([1, 5])
+            col_save, col_clear, col_status = st.columns([1, 1, 4])
             with col_save:
                 if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = user_comment
-                    st.success('✅ Gespeichert')
+                    st.session_state[comment_key] = user_comment
+                    st.success('✅')
             with col_clear:
-                if user_comment and st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}'):
+                if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}'):
                     st.session_state.user_comments[gene] = ''
+                    st.session_state[comment_key] = ''
                     st.rerun()
+            with col_status:
+                if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
+                    st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
 
             # Kommentare mit Expander (standardmäßig ausgeklappt)
             st.markdown("<h4 style='font-size: 17px; margin-top: 20px;'>Kommentare aus Umfrage</h4>", unsafe_allow_html=True)
