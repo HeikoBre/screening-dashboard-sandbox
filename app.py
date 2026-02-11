@@ -267,18 +267,27 @@ if st.session_state.df is not None:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Rechte Spalte: Kommentarfeld
-            with comment_col:
-                # Hole den aktuellen Kommentar
-                current_comment = st.session_state.user_comments.get(gene, '')
-                
-                user_comment = st.text_area(
-                    f"Notizen zu **_{gene}_**",
-                    value=current_comment,
-                    height=300,
-                    key=f'comment_input_{gene}_{tab_idx}',
-                    placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
-                )
+            # Rechte Spalte: Kommentarfeld mit vertikaler Trennlinie
+with comment_col:
+    st.markdown("""
+    <style>
+    div[data-testid="column"]:has(textarea) {
+        border-left: 2px solid #e0e0e0;
+        padding-left: 20px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Hole den aktuellen Kommentar
+    current_comment = st.session_state.user_comments.get(gene, '')
+    
+    user_comment = st.text_area(
+        f"Notizen zu **_{gene}_**",
+        value=current_comment,
+        height=300,
+        key=f'comment_input_{gene}_{tab_idx}',
+        placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
+    )
                 
                 col_save, col_clear = st.columns(2)
                 with col_save:
