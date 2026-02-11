@@ -58,7 +58,7 @@ if st.session_state.df is None:
             summary_data = []
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             for gene in st.session_state.genes:
-                nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
+                nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' nicht in col]
                 nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
                 stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
                 stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
@@ -184,14 +184,29 @@ if st.session_state.df is not None:
                     nat_data = df[nat_q_cols].stack().dropna()
                     n_total = len(nat_data)
                     
-                    fig_nat = go.Figure()
-                    colors = {'Ja': '#ACF3AE', 'Nein': '#C43D5A', 'Ich kann diese Frage nicht beantworten': '#DDDDDD'}
-                    for opt in options:
-                        pct = (nat_data == opt).sum() / n_total * 100 if n_total > 0 else 0
-                        if pct > 0:
-                            fig_nat.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
-                                                     text=f'{pct:.0f}%', textposition='inside', textfont_size=11, width=0.3))
-                    fig_nat.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
+                    # Pie Chart für National
+                    colors = ['#ACF3AE', '#C43D5A', '#DDDDDD']
+                    labels = ['Ja', 'Nein', 'NA']
+                    values = [
+                        (nat_data == 'Ja').sum(),
+                        (nat_data == 'Nein').sum(),
+                        (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
+                    ]
+                    
+                    fig_nat = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values,
+                        marker=dict(colors=colors),
+                        textinfo='percent',
+                        textfont_size=12,
+                        hole=0.3  # Donut-Chart
+                    )])
+                    fig_nat.update_layout(
+                        height=250,
+                        margin=dict(t=0, b=0, l=0, r=0),
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                    )
                     st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
                     
                     # Erweiterte Anzeige
@@ -209,13 +224,27 @@ if st.session_state.df is not None:
                     stud_data = df[stud_q_cols].stack().dropna()
                     n_total_stud = len(stud_data)
                     
-                    fig_stud = go.Figure()
-                    for opt in options:
-                        pct = (stud_data == opt).sum() / n_total_stud * 100 if n_total_stud > 0 else 0
-                        if pct > 0:
-                            fig_stud.add_trace(go.Bar(name=opt[:3], x=[''], y=[pct], marker_color=colors[opt],
-                                                      text=f'{pct:.0f}%', textposition='inside', textfont_size=11, width=0.3))
-                    fig_stud.update_layout(barmode='stack', height=220, margin=dict(b=0,t=0,l=0,r=0), yaxis_range=[0,100], bargap=0, showlegend=False, width=100)
+                    # Pie Chart für Studie
+                    values_stud = [
+                        (stud_data == 'Ja').sum(),
+                        (stud_data == 'Nein').sum(),
+                        (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
+                    ]
+                    
+                    fig_stud = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values_stud,
+                        marker=dict(colors=colors),
+                        textinfo='percent',
+                        textfont_size=12,
+                        hole=0.3  # Donut-Chart
+                    )])
+                    fig_stud.update_layout(
+                        height=250,
+                        margin=dict(t=0, b=0, l=0, r=0),
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                    )
                     st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
                     
                     # Erweiterte Anzeige
