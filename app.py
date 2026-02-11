@@ -273,7 +273,7 @@ if st.session_state.df is not None:
                 <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
                 """, unsafe_allow_html=True)
                 
-                st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Notizen</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Notizen zu _{gene}_</h4>", unsafe_allow_html=True)
                 
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
