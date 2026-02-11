@@ -95,8 +95,10 @@ if st.session_state.summary_df is not None:
     export_df = st.session_state.summary_df.copy()
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # User-Kommentare hinzufügen
-    export_df['Reviewer_Kommentar'] = export_df['Gen'].map(st.session_state.user_comments).fillna('')
+    # User-Kommentare direkt aus session_state hinzufügen
+    export_df['Reviewer_Kommentar'] = export_df['Gen'].apply(
+        lambda gene: st.session_state.user_comments.get(gene, '')
+    )
     
     export_df.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue().encode('utf-8')
@@ -109,7 +111,13 @@ if st.session_state.summary_df is not None:
     )
     
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
-    st.sidebar.dataframe(st.session_state.summary_df, use_container_width=True, height=300)
+    
+    # Vorschau-Tabelle mit Kommentaren
+    preview_df = st.session_state.summary_df.copy()
+    preview_df['Kommentar'] = preview_df['Gen'].apply(
+        lambda gene: '✅' if st.session_state.user_comments.get(gene, '') else ''
+    )
+    st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
 if st.session_state.df is not None:
