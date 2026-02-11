@@ -180,7 +180,7 @@ if st.session_state.df is not None:
                 left_col, right_col = st.columns(2)
                 
                 with left_col:
-                    st.markdown("#### Nationales Screening")
+                    st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Nationales Screening</h4>", unsafe_allow_html=True)
                     nat_data = df[nat_q_cols].stack().dropna()
                     n_total = len(nat_data)
                     
@@ -220,7 +220,7 @@ if st.session_state.df is not None:
                     st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}')
 
                 with right_col:
-                    st.markdown("#### Wissenschaftliche Studie")
+                    st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
                     stud_data = df[stud_q_cols].stack().dropna()
                     n_total_stud = len(stud_data)
                     
@@ -273,15 +273,18 @@ if st.session_state.df is not None:
                 <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
                 """, unsafe_allow_html=True)
                 
+                st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Notizen</h4>", unsafe_allow_html=True)
+                
                 # Hole den aktuellen Kommentar
                 current_comment = st.session_state.user_comments.get(gene, '')
                 
                 user_comment = st.text_area(
-                    f"Notizen zu **_{gene}_**",
+                    f"_{gene}_",
                     value=current_comment,
                     height=300,
                     key=f'comment_input_{gene}_{tab_idx}',
-                    placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren..."
+                    placeholder="Hier können Sie Ihre Anmerkungen, Bewertungen oder Entscheidungen zu diesem Gen dokumentieren...",
+                    label_visibility="collapsed"
                 )
                 
                 col_save, col_clear = st.columns(2)
