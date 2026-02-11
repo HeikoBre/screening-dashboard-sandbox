@@ -56,7 +56,9 @@ if st.session_state.df is None:
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             for gene in st.session_state.genes:
                 nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
+                nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
                 stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+                stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
                 
                 nat_data = df[nat_q_cols].stack().dropna()
                 n_nat = len(nat_data)
@@ -66,6 +68,10 @@ if st.session_state.df is None:
                 nat_ja = (nat_data == 'Ja').sum() / n_nat * 100 if n_nat > 0 else 0
                 stud_ja = (stud_data == 'Ja').sum() / n_stud * 100 if n_stud > 0 else 0
                 
+                # Sammle Kommentare
+                nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
+                stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+                
                 summary_data.append({
                     'Gen': gene,
                     'Erkrankung': st.session_state.gene_dict[gene],
@@ -73,7 +79,9 @@ if st.session_state.df is None:
                     'National_n': n_nat,
                     'Studie_Ja_pct': round(stud_ja, 1),
                     'Studie_n': n_stud,
-                    'National_80': 'Yes' if nat_ja >= 80 else 'No'
+                    'National_80': 'Yes' if nat_ja >= 80 else 'No',
+                    'Kommentare_National': ' | '.join(nat_comments) if nat_comments else '',
+                    'Kommentare_Studie': ' | '.join(stud_comments) if stud_comments else ''
                 })
             
             st.session_state.summary_df = pd.DataFrame(summary_data)
@@ -91,7 +99,7 @@ if st.session_state.summary_df is not None:
     
     # Debug: Zeige gespeicherte Kommentare
     if st.session_state.user_comments:
-        st.sidebar.caption(f"💬 {len(st.session_state.user_comments)} Kommentar(e) gespeichert")
+        st.sidebar.caption(f"💬 {len(st.session_state.user_comments)} Reviewer-Kommentar(e) gespeichert")
     
     # CSV mit Datum und User-Kommentaren
     today = datetime.now().strftime("%Y%m%d")
@@ -120,7 +128,7 @@ if st.session_state.summary_df is not None:
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     
     # Vorschau mit Kommentar-Indikator
-    preview_df = st.session_state.summary_df.copy()
+    preview_df = st.session_state.summary_df[['Gen', 'Erkrankung', 'National_Ja_pct', 'Studie_Ja_pct', 'National_80']].copy()
     preview_df['💬'] = preview_df['Gen'].apply(
         lambda gene: '✓' if st.session_state.user_comments.get(gene, '').strip() else ''
     )
@@ -208,7 +216,7 @@ if st.session_state.df is not None:
             </div>
             """, unsafe_allow_html=True)
 
-            # Reviewer-Kommentar hinzufügen - FIXED
+            # Reviewer-Kommentar hinzufügen
             st.markdown("### 📝 Ihr Kommentar")
             
             # Hole den aktuellen Kommentar
