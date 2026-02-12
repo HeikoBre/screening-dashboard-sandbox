@@ -171,10 +171,10 @@ def generate_pdf():
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     # Logo klein und dezent: 0.4 inch hoch
-                    logo_height = 0.3*inch
+                    logo_height = 0.4*inch
                     logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
                     
-                    x_position = A4[0] - 0.75*inch - logo_width
+                    x_position = A4[0] - 0.5*inch - logo_width
                     y_position = 0.25*inch
                     
                     self.drawImage(logo_path, x_position, y_position, 
