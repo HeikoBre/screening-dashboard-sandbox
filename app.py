@@ -5,7 +5,7 @@ from datetime import datetime
 import io
 import base64
 from reportlab.lib.pagesizes import A4, letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -171,10 +171,10 @@ def generate_pdf():
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     # Logo klein und dezent: 0.4 inch hoch
-                    logo_height = 0.4*inch
+                    logo_height = 0.3*inch
                     logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
                     
-                    x_position = A4[0] - 0.5*inch - logo_width
+                    x_position = A4[0] - 0.75*inch - logo_width
                     y_position = 0.25*inch
                     
                     self.drawImage(logo_path, x_position, y_position, 
@@ -292,7 +292,7 @@ def generate_pdf():
             ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
             ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
             ['Nein', f'{nat_nein} ({nat_nein_pct:.1f}%)', f'{stud_nein} ({stud_nein_pct:.1f}%)'],
-            ['Kann ich nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
+            ['Kann nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
             ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
             ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
         ]
@@ -312,6 +312,47 @@ def generate_pdf():
         ]))
         
         story.append(t)
+        story.append(Spacer(1, 15))
+        
+        # Horizontaler Trennstrich
+        story.append(Spacer(1, 5))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
+        
+        # Gesamtbewertung mit Ampel-System
+        story.append(Paragraph("<b>Gesamtbewertung:</b>", section_style))
+        
+        # Ampel-Logik
+        if nat_ja_pct >= 80:
+            # GRÜN: National ≥80%
+            ampel_color = colors.HexColor('#4CAF50')  # Grün
+            ampel_text = "✓ Empfohlen für nationales gNBS"
+            ampel_icon = "🟢"
+        elif stud_ja_pct >= 80:
+            # GELB: National <80%, aber Studie ≥80%
+            ampel_color = colors.HexColor('#FFC107')  # Gelb/Orange
+            ampel_text = "⚠ Empfohlen für wissenschaftliche Studie"
+            ampel_icon = "🟡"
+        else:
+            # ROT: Beide <80%
+            ampel_color = colors.HexColor('#F44336')  # Rot
+            ampel_text = "✗ Cut-Off nicht erreicht"
+            ampel_icon = "🔴"
+        
+        # Ampel-Box mit Hintergrundfarbe
+        ampel_data = [[ampel_text]]
+        ampel_table = Table(ampel_data, colWidths=[5*inch])
+        ampel_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), ampel_color),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+        ]))
+        
+        story.append(ampel_table)
         story.append(Spacer(1, 15))
         
         # Kommentare aus Umfrage - National
