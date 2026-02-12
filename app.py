@@ -5,7 +5,7 @@ from datetime import datetime
 import io
 import base64
 from reportlab.lib.pagesizes import A4, letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, HRFlowable, Bookmark
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -279,11 +279,8 @@ def generate_pdf():
     for gene in st.session_state.genes:
         disease = st.session_state.gene_dict.get(gene, '')
         
-        # Bookmark für Inhaltsverzeichnis-Links
-        story.append(Bookmark(gene))
-        
-        # Gen-Header
-        story.append(Paragraph(f"<b>{gene}</b>", gene_style))
+        # Gen-Header mit Destination für TOC-Links
+        story.append(Paragraph(f'<a name="{gene}"/><b>{gene}</b>', gene_style))
         story.append(Paragraph(disease, disease_style))
         story.append(Spacer(1, 6))
         
