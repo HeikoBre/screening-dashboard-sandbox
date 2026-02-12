@@ -127,7 +127,7 @@ def generate_csv():
 def generate_pdf():
     """Generiert ein PDF-Dokument mit allen Genen, Visualisierungen und Kommentaren"""
     
-    # Custom Canvas class für Footer mit Seitenzahlen
+    # Custom Canvas class für Footer mit Seitenzahlen und Bookmarks
     class PageNumCanvas(canvas.Canvas):
         def __init__(self, *args, **kwargs):
             canvas.Canvas.__init__(self, *args, **kwargs)
@@ -167,21 +167,16 @@ def generate_pdf():
             
             # Rechts: UKHD Logo (falls vorhanden)
             try:
-                # Logo-Pfad - entweder im gleichen Verzeichnis oder absoluter Pfad
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
-                    # Logo klein und dezent: 0.4 inch hoch
-                    logo_height = 0.3*inch
-                    logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
-                    
-                    x_position = A4[0] - 0.75*inch - logo_width
+                    logo_height = 0.4*inch
+                    logo_width = logo_height * 2
+                    x_position = A4[0] - 0.5*inch - logo_width
                     y_position = 0.25*inch
-                    
                     self.drawImage(logo_path, x_position, y_position, 
                                  width=logo_width, height=logo_height, 
                                  preserveAspectRatio=True, mask='auto')
             except Exception as e:
-                # Falls Logo nicht gefunden wird, einfach weiter ohne Logo
                 pass
     
     # Temporäre Datei für PDF
@@ -240,6 +235,15 @@ def generate_pdf():
         spaceAfter=6
     )
     
+    toc_style = ParagraphStyle(
+        'TOCEntry',
+        parent=styles['Normal'],
+        fontSize=10,
+        leftIndent=20,
+        spaceAfter=6,
+        textColor=colors.HexColor('#1f77b4')
+    )
+    
     story = []
     
     # Titelseite
@@ -254,22 +258,25 @@ def generate_pdf():
     story.append(Paragraph("Inhaltsverzeichnis", title_style))
     story.append(Spacer(1, 12))
     
-    # TOC Style
-    toc_style = ParagraphStyle(
-        'TOCEntry',
-        parent=styles['Normal'],
-        fontSize=10,
-        leftIndent=20,
-        spaceAfter=4,
-        textColor=colors.HexColor('#1f77b4')
-    )
-    
-    # Erstelle TOC Einträge mit Links
-    for idx, gene in enumerate(st.session_state.genes, start=1):
+    # Erstelle TOC Einträge - wir berechnen die Seitenzahlen
+    # Seite 1 = Titel, Seite 2 = TOC, ab Seite 3 = Gene
+    for idx, gene in enumerate(st.session_state.genes):
         disease = st.session_state.gene_dict.get(gene, '')
-        # Verwende Bookmark-System von ReportLab
-        toc_entry = Paragraph(f'<a href="#{gene}" color="blue"><b>{gene}</b> ({disease})</a>', toc_style)
-        story.append(toc_entry)
+        page_num = idx + 3  # Start bei Seite 3
+        
+        # Erstelle TOC Zeile mit Punkten
+        toc_text = f'<b>{gene}</b> ({disease})'
+        dots = '.' * 80  # Platzhalter für Punkte
+        
+        # Tabelle für TOC-Zeile (Text links, Seitenzahl rechts)
+        toc_data = [[Paragraph(toc_text, toc_style), Paragraph(f'{page_num}', toc_style)]]
+        toc_table = Table(toc_data, colWidths=[5.5*inch, 0.5*inch])
+        toc_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        story.append(toc_table)
     
     story.append(PageBreak())
     
@@ -279,8 +286,8 @@ def generate_pdf():
     for gene in st.session_state.genes:
         disease = st.session_state.gene_dict.get(gene, '')
         
-        # Gen-Header mit Destination für TOC-Links
-        story.append(Paragraph(f'<a name="{gene}"/><b>{gene}</b>', gene_style))
+        # Gen-Header
+        story.append(Paragraph(f"<b>{gene}</b>", gene_style))
         story.append(Paragraph(disease, disease_style))
         story.append(Spacer(1, 6))
         
@@ -342,7 +349,6 @@ def generate_pdf():
         if nat_comments:
             story.append(Paragraph("<b>Kommentare National:</b>", section_style))
             for idx, comment in enumerate(nat_comments, 1):
-                # Escape HTML characters in comments
                 safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
             story.append(Spacer(1, 10))
@@ -361,7 +367,6 @@ def generate_pdf():
         if reviewer_comment:
             story.append(Paragraph("<b>Kommentare der Besprechung:</b>", section_style))
             safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            # Splitze lange Kommentare in Absätze
             for para in safe_reviewer_comment.split('\n'):
                 if para.strip():
                     story.append(Paragraph(para, comment_style))
@@ -376,16 +381,13 @@ def generate_pdf():
         
         # Ampel-Logik
         if nat_ja_pct >= 80:
-            # GRÜN: National ≥80%
-            ampel_color = colors.HexColor('#4CAF50')  # Grün
+            ampel_color = colors.HexColor('#4CAF50')
             ampel_text = "Aufnahme in nationales gNBS"
         elif stud_ja_pct >= 80:
-            # GELB: National <80%, aber Studie ≥80%
-            ampel_color = colors.HexColor('#FFC107')  # Gelb/Orange
+            ampel_color = colors.HexColor('#FFC107')
             ampel_text = "Aufnahme in wissenschaftliche gNBS Studie"
         else:
-            # ROT: Beide <80%
-            ampel_color = colors.HexColor('#F44336')  # Rot
+            ampel_color = colors.HexColor('#F44336')
             ampel_text = "Keine Berücksichtigung der Zielerkrankung im Rahmen des gNBS"
         
         # Ampel-Box mit Hintergrundfarbe
