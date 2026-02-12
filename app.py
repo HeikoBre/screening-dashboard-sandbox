@@ -171,10 +171,10 @@ def generate_pdf():
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     # Logo klein und dezent: 0.4 inch hoch
-                    logo_height = 0.3*inch
+                    logo_height = 0.4*inch
                     logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
                     
-                    x_position = A4[0] - 0.75*inch - logo_width
+                    x_position = A4[0] - 0.5*inch - logo_width
                     y_position = 0.25*inch
                     
                     self.drawImage(logo_path, x_position, y_position, 
@@ -292,7 +292,7 @@ def generate_pdf():
             ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
             ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
             ['Nein', f'{nat_nein} ({nat_nein_pct:.1f}%)', f'{stud_nein} ({stud_nein_pct:.1f}%)'],
-            ['Kann nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
+            ['Kann ich nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
             ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
             ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
         ]
