@@ -5,7 +5,7 @@ from datetime import datetime
 import io
 import base64
 from reportlab.lib.pagesizes import A4, letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle, HRFlowable, Bookmark
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -250,11 +250,37 @@ def generate_pdf():
     story.append(Paragraph(f"Anzahl Gene: {len(st.session_state.genes)}", styles['Normal']))
     story.append(PageBreak())
     
+    # Inhaltsverzeichnis auf Seite 2
+    story.append(Paragraph("Inhaltsverzeichnis", title_style))
+    story.append(Spacer(1, 12))
+    
+    # TOC Style
+    toc_style = ParagraphStyle(
+        'TOCEntry',
+        parent=styles['Normal'],
+        fontSize=10,
+        leftIndent=20,
+        spaceAfter=4,
+        textColor=colors.HexColor('#1f77b4')
+    )
+    
+    # Erstelle TOC Einträge mit Links
+    for idx, gene in enumerate(st.session_state.genes, start=1):
+        disease = st.session_state.gene_dict.get(gene, '')
+        # Verwende Bookmark-System von ReportLab
+        toc_entry = Paragraph(f'<a href="#{gene}" color="blue"><b>{gene}</b> ({disease})</a>', toc_style)
+        story.append(toc_entry)
+    
+    story.append(PageBreak())
+    
     # Für jedes Gen eine Seite
     df = st.session_state.df
     
     for gene in st.session_state.genes:
         disease = st.session_state.gene_dict.get(gene, '')
+        
+        # Bookmark für Inhaltsverzeichnis-Links
+        story.append(Bookmark(gene))
         
         # Gen-Header
         story.append(Paragraph(f"<b>{gene}</b>", gene_style))
@@ -349,7 +375,7 @@ def generate_pdf():
         story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
         
         # Gesamtbewertung mit Ampel-System (ganz unten)
-        story.append(Paragraph(f"<b>Gesamtbewertung für <i>{gene}</i>:</b>", section_style))
+        story.append(Paragraph(f"<b>Gesamtbewertung für <i>{gene}</i> ({disease}):</b>", section_style))
         
         # Ampel-Logik
         if nat_ja_pct >= 80:
