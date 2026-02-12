@@ -10,6 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfgen import canvas
 import tempfile
 import os
 
@@ -126,10 +127,67 @@ def generate_csv():
 def generate_pdf():
     """Generiert ein PDF-Dokument mit allen Genen, Visualisierungen und Kommentaren"""
     
+    # Custom Canvas class für Footer mit Seitenzahlen
+    class PageNumCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self.pages = []
+            self.creation_date = datetime.now().strftime('%d.%m.%Y')
+            
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
+            
+        def save(self):
+            page_count = len(self.pages)
+            for page_num, page in enumerate(self.pages, start=1):
+                self.__dict__.update(page)
+                self.draw_page_number(page_num, page_count)
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
+            
+        def draw_page_number(self, page_num, page_count):
+            # Footer Linie
+            self.setStrokeColor(colors.grey)
+            self.setLineWidth(0.5)
+            self.line(0.75*inch, 0.5*inch, A4[0] - 0.75*inch, 0.5*inch)
+            
+            # Footer Text
+            self.setFont('Helvetica', 8)
+            self.setFillColor(colors.grey)
+            
+            # Links: Datum
+            self.drawString(0.75*inch, 0.35*inch, f"Erstellt am: {self.creation_date}")
+            
+            # Mitte: Seitenzahl
+            page_text = f"Seite {page_num} von {page_count}"
+            page_text_width = self.stringWidth(page_text, 'Helvetica', 8)
+            center_x = (A4[0] - page_text_width) / 2
+            self.drawString(center_x, 0.35*inch, page_text)
+            
+            # Rechts: UKHD Logo (falls vorhanden)
+            try:
+                # Logo-Pfad - entweder im gleichen Verzeichnis oder absoluter Pfad
+                logo_path = "uk_akro.jpg"
+                if os.path.exists(logo_path):
+                    # Logo klein und dezent: 0.4 inch hoch
+                    logo_height = 0.3*inch
+                    logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
+                    
+                    x_position = A4[0] - 0.75*inch - logo_width
+                    y_position = 0.25*inch
+                    
+                    self.drawImage(logo_path, x_position, y_position, 
+                                 width=logo_width, height=logo_height, 
+                                 preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                # Falls Logo nicht gefunden wird, einfach weiter ohne Logo
+                pass
+    
     # Temporäre Datei für PDF
     pdf_buffer = io.BytesIO()
     
-    # PDF Setup
+    # PDF Setup mit custom canvas
     doc = SimpleDocTemplate(pdf_buffer, pagesize=A4,
                            topMargin=0.75*inch, bottomMargin=0.75*inch,
                            leftMargin=0.75*inch, rightMargin=0.75*inch)
@@ -286,8 +344,8 @@ def generate_pdf():
         if gene != st.session_state.genes[-1]:
             story.append(PageBreak())
     
-    # PDF erstellen
-    doc.build(story)
+    # PDF erstellen mit custom canvas
+    doc.build(story, canvasmaker=PageNumCanvas)
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
 
