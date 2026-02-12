@@ -259,7 +259,7 @@ if st.session_state.df is not None:
 
                 # Legende direkt unter den Abbildungen
                 st.markdown("""
-                <div style='background-color: white; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
+                <div style='background-color: transparent; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
                     <span style='background-color: #ACF3AE; padding: 2px 8px; border-radius: 3px; margin-left: 10px; font-size: 11px;'>Ja</span>
                     <span style='background-color: #C43D5A; color: white; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Nein</span>
