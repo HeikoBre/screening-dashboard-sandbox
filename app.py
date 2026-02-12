@@ -314,47 +314,6 @@ def generate_pdf():
         story.append(t)
         story.append(Spacer(1, 15))
         
-        # Horizontaler Trennstrich
-        story.append(Spacer(1, 5))
-        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
-        
-        # Gesamtbewertung mit Ampel-System
-        story.append(Paragraph("<b>Gesamtbewertung:</b>", section_style))
-        
-        # Ampel-Logik
-        if nat_ja_pct >= 80:
-            # GRÜN: National ≥80%
-            ampel_color = colors.HexColor('#4CAF50')  # Grün
-            ampel_text = "✓ Empfohlen für nationales gNBS"
-            ampel_icon = "🟢"
-        elif stud_ja_pct >= 80:
-            # GELB: National <80%, aber Studie ≥80%
-            ampel_color = colors.HexColor('#FFC107')  # Gelb/Orange
-            ampel_text = "⚠ Empfohlen für wissenschaftliche Studie"
-            ampel_icon = "🟡"
-        else:
-            # ROT: Beide <80%
-            ampel_color = colors.HexColor('#F44336')  # Rot
-            ampel_text = "✗ Cut-Off nicht erreicht"
-            ampel_icon = "🔴"
-        
-        # Ampel-Box mit Hintergrundfarbe
-        ampel_data = [[ampel_text]]
-        ampel_table = Table(ampel_data, colWidths=[5*inch])
-        ampel_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), ampel_color),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('ROUNDEDCORNERS', [5, 5, 5, 5]),
-        ]))
-        
-        story.append(ampel_table)
-        story.append(Spacer(1, 15))
-        
         # Kommentare aus Umfrage - National
         nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
         if nat_comments:
@@ -384,6 +343,44 @@ def generate_pdf():
                 if para.strip():
                     story.append(Paragraph(para, comment_style))
             story.append(Spacer(1, 10))
+        
+        # Horizontaler Trennstrich
+        story.append(Spacer(1, 5))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
+        
+        # Gesamtbewertung mit Ampel-System (ganz unten)
+        story.append(Paragraph(f"<b>Gesamtbewertung für <i>{gene}</i>:</b>", section_style))
+        
+        # Ampel-Logik
+        if nat_ja_pct >= 80:
+            # GRÜN: National ≥80%
+            ampel_color = colors.HexColor('#4CAF50')  # Grün
+            ampel_text = "Aufnahme in nationales gNBS"
+        elif stud_ja_pct >= 80:
+            # GELB: National <80%, aber Studie ≥80%
+            ampel_color = colors.HexColor('#FFC107')  # Gelb/Orange
+            ampel_text = "Aufnahme in wissenschaftliche gNBS Studie"
+        else:
+            # ROT: Beide <80%
+            ampel_color = colors.HexColor('#F44336')  # Rot
+            ampel_text = "Keine Berücksichtigung der Zielerkrankung im Rahmen des gNBS"
+        
+        # Ampel-Box mit Hintergrundfarbe
+        ampel_data = [[ampel_text]]
+        ampel_table = Table(ampel_data, colWidths=[5*inch])
+        ampel_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), ampel_color),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+        ]))
+        
+        story.append(ampel_table)
+        story.append(Spacer(1, 15))
         
         # Seitenumbruch nach jedem Gen (außer beim letzten)
         if gene != st.session_state.genes[-1]:
