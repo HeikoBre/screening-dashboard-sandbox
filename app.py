@@ -168,7 +168,7 @@ def generate_pdf():
             # Rechts: UKHD Logo (falls vorhanden)
             try:
                 # Logo-Pfad - entweder im gleichen Verzeichnis oder absoluter Pfad
-                logo_path = "https://design.ukhd.de/pix/uk_akro.jpg"
+                logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     # Logo klein und dezent: 0.4 inch hoch
                     logo_height = 0.3*inch
