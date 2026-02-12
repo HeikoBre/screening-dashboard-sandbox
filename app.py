@@ -171,10 +171,10 @@ def generate_pdf():
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     # Logo klein und dezent: 0.4 inch hoch
-                    logo_height = 0.4*inch
+                    logo_height = 0.3*inch
                     logo_width = logo_height * 2  # Annahme: Logo ist etwa doppelt so breit wie hoch
                     
-                    x_position = A4[0] - 0.5*inch - logo_width
+                    x_position = A4[0] - 0.75*inch - logo_width
                     y_position = 0.25*inch
                     
                     self.drawImage(logo_path, x_position, y_position, 
@@ -276,19 +276,23 @@ def generate_pdf():
         nat_na = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
         nat_total = len(nat_data)
         nat_ja_pct = (nat_ja / nat_total * 100) if nat_total > 0 else 0
+        nat_nein_pct = (nat_nein / nat_total * 100) if nat_total > 0 else 0
+        nat_na_pct = (nat_na / nat_total * 100) if nat_total > 0 else 0
         
         stud_ja = (stud_data == 'Ja').sum()
         stud_nein = (stud_data == 'Nein').sum()
         stud_na = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
         stud_total = len(stud_data)
         stud_ja_pct = (stud_ja / stud_total * 100) if stud_total > 0 else 0
+        stud_nein_pct = (stud_nein / stud_total * 100) if stud_total > 0 else 0
+        stud_na_pct = (stud_na / stud_total * 100) if stud_total > 0 else 0
         
         # Tabelle mit Ergebnissen
         data = [
             ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
             ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
-            ['Nein', f'{nat_nein}', f'{stud_nein}'],
-            ['Kann nicht beantworten', f'{nat_na}', f'{stud_na}'],
+            ['Nein', f'{nat_nein} ({nat_nein_pct:.1f}%)', f'{stud_nein} ({stud_nein_pct:.1f}%)'],
+            ['Kann nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
             ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
             ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
         ]
@@ -329,10 +333,10 @@ def generate_pdf():
                 story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
             story.append(Spacer(1, 10))
         
-        # Reviewer Kommentar
+        # Kommentare der Besprechung
         reviewer_comment = st.session_state.user_comments.get(gene, '')
         if reviewer_comment:
-            story.append(Paragraph("<b>Reviewer-Notizen:</b>", section_style))
+            story.append(Paragraph("<b>Kommentare der Besprechung:</b>", section_style))
             safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             # Splitze lange Kommentare in Absätze
             for para in safe_reviewer_comment.split('\n'):
