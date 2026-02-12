@@ -3,6 +3,15 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 import io
+import base64
+from reportlab.lib.pagesizes import A4, letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+import tempfile
+import os
 
 # Sidebar standardmäßig zugeklappt
 st.set_page_config(initial_sidebar_state="collapsed")
@@ -96,14 +105,13 @@ else:
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# Funktion zum Generieren der CSV (wird erst beim Download aufgerufen)
+# Funktion zum Generieren der CSV
 def generate_csv():
-    today = datetime.now().strftime("%Y%m%d")
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # User-Kommentare hinzufügen - HIER werden die aktuellen Kommentare geholt
+    # User-Kommentare hinzufügen
     reviewer_comments = []
     for gene in export_df['Gen']:
         comment = st.session_state.user_comments.get(gene, '')
@@ -113,6 +121,175 @@ def generate_csv():
     
     export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
     return csv_buffer.getvalue().encode('utf-8-sig')
+
+# Funktion zum Generieren des PDFs
+def generate_pdf():
+    """Generiert ein PDF-Dokument mit allen Genen, Visualisierungen und Kommentaren"""
+    
+    # Temporäre Datei für PDF
+    pdf_buffer = io.BytesIO()
+    
+    # PDF Setup
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4,
+                           topMargin=0.75*inch, bottomMargin=0.75*inch,
+                           leftMargin=0.75*inch, rightMargin=0.75*inch)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    
+    # Custom Styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#1f77b4'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    
+    gene_style = ParagraphStyle(
+        'GeneName',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2ca02c'),
+        spaceAfter=6,
+        spaceBefore=12
+    )
+    
+    disease_style = ParagraphStyle(
+        'DiseaseName',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.grey,
+        spaceAfter=12,
+        italic=True
+    )
+    
+    section_style = ParagraphStyle(
+        'SectionHeader',
+        parent=styles['Heading3'],
+        fontSize=12,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=8,
+        spaceBefore=10
+    )
+    
+    comment_style = ParagraphStyle(
+        'CommentText',
+        parent=styles['Normal'],
+        fontSize=9,
+        leftIndent=20,
+        spaceAfter=6
+    )
+    
+    story = []
+    
+    # Titelseite
+    story.append(Paragraph("Expertenreview gNBS", title_style))
+    story.append(Paragraph(f"Dokumentation vom {datetime.now().strftime('%d.%m.%Y')}", styles['Normal']))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(f"Gesamtanzahl Responses: {st.session_state.total_responses}", styles['Normal']))
+    story.append(Paragraph(f"Anzahl Gene: {len(st.session_state.genes)}", styles['Normal']))
+    story.append(PageBreak())
+    
+    # Für jedes Gen eine Seite
+    df = st.session_state.df
+    
+    for gene in st.session_state.genes:
+        disease = st.session_state.gene_dict.get(gene, '')
+        
+        # Gen-Header
+        story.append(Paragraph(f"<b>{gene}</b>", gene_style))
+        story.append(Paragraph(disease, disease_style))
+        story.append(Spacer(1, 6))
+        
+        # Daten sammeln
+        nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
+        nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
+        stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+        stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
+        
+        nat_data = df[nat_q_cols].stack().dropna()
+        stud_data = df[stud_q_cols].stack().dropna()
+        
+        # Statistiken als Tabelle
+        nat_ja = (nat_data == 'Ja').sum()
+        nat_nein = (nat_data == 'Nein').sum()
+        nat_na = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
+        nat_total = len(nat_data)
+        nat_ja_pct = (nat_ja / nat_total * 100) if nat_total > 0 else 0
+        
+        stud_ja = (stud_data == 'Ja').sum()
+        stud_nein = (stud_data == 'Nein').sum()
+        stud_na = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
+        stud_total = len(stud_data)
+        stud_ja_pct = (stud_ja / stud_total * 100) if stud_total > 0 else 0
+        
+        # Tabelle mit Ergebnissen
+        data = [
+            ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
+            ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
+            ['Nein', f'{nat_nein}', f'{stud_nein}'],
+            ['Kann nicht beantworten', f'{nat_na}', f'{stud_na}'],
+            ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
+            ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
+        ]
+        
+        t = Table(data, colWidths=[2.2*inch, 2*inch, 2*inch])
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0f0f0')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#fafafa')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (1, 1), (-1, -2), [colors.white, colors.HexColor('#f9f9f9')]),
+        ]))
+        
+        story.append(t)
+        story.append(Spacer(1, 15))
+        
+        # Kommentare aus Umfrage - National
+        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
+        if nat_comments:
+            story.append(Paragraph("<b>Kommentare National:</b>", section_style))
+            for idx, comment in enumerate(nat_comments, 1):
+                # Escape HTML characters in comments
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
+            story.append(Spacer(1, 10))
+        
+        # Kommentare aus Umfrage - Studie
+        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+        if stud_comments:
+            story.append(Paragraph("<b>Kommentare Studie:</b>", section_style))
+            for idx, comment in enumerate(stud_comments, 1):
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
+            story.append(Spacer(1, 10))
+        
+        # Reviewer Kommentar
+        reviewer_comment = st.session_state.user_comments.get(gene, '')
+        if reviewer_comment:
+            story.append(Paragraph("<b>Reviewer-Notizen:</b>", section_style))
+            safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            # Splitze lange Kommentare in Absätze
+            for para in safe_reviewer_comment.split('\n'):
+                if para.strip():
+                    story.append(Paragraph(para, comment_style))
+            story.append(Spacer(1, 10))
+        
+        # Seitenumbruch nach jedem Gen (außer beim letzten)
+        if gene != st.session_state.genes[-1]:
+            story.append(PageBreak())
+    
+    # PDF erstellen
+    doc.build(story)
+    pdf_buffer.seek(0)
+    return pdf_buffer.getvalue()
 
 # Sidebar Export
 if st.session_state.summary_df is not None:
@@ -128,18 +305,31 @@ if st.session_state.summary_df is not None:
         with st.sidebar.expander("📝 Kommentierte Gene"):
             for gene, comment in st.session_state.user_comments.items():
                 if comment.strip():
-                    st.caption(f"✓ {gene}")
+                    st.sidebar.caption(f"✓ {gene}")
     
-    # Download-Button der die CSV dynamisch generiert
     today = datetime.now().strftime("%Y%m%d")
+    
+    # CSV Download
     st.sidebar.download_button(
-        label=f'📥 Download Zusammenfassung_{today}.csv',
+        label=f'📊 CSV Zusammenfassung',
         data=generate_csv(),
         file_name=f'gNBS_Expertenreview_Zusammenfassung_{today}.csv',
         mime='text/csv',
-        key='download_csv'
+        key='download_csv',
+        use_container_width=True
     )
     
+    # PDF Download
+    st.sidebar.download_button(
+        label=f'📄 PDF Dokumentation',
+        data=generate_pdf(),
+        file_name=f'gNBS_Expertenreview_Dokumentation_{today}.pdf',
+        mime='application/pdf',
+        key='download_pdf',
+        use_container_width=True
+    )
+    
+    st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     
     # Vorschau mit Kommentar-Indikator
@@ -185,7 +375,7 @@ if st.session_state.df is not None:
                     n_total = len(nat_data)
                     
                     # Pie Chart für National
-                    colors = ['#ACF3AE', '#C43D5A', '#DDDDDD']
+                    colors_chart = ['#ACF3AE', '#C43D5A', '#DDDDDD']
                     labels = ['Ja', 'Nein', 'NA']
                     values = [
                         (nat_data == 'Ja').sum(),
@@ -196,10 +386,10 @@ if st.session_state.df is not None:
                     fig_nat = go.Figure(data=[go.Pie(
                         labels=labels,
                         values=values,
-                        marker=dict(colors=colors),
+                        marker=dict(colors=colors_chart),
                         textinfo='percent',
                         textfont_size=12,
-                        hole=0.5  # Donut-Chart
+                        hole=0.5
                     )])
                     fig_nat.update_layout(
                         height=250,
@@ -234,10 +424,10 @@ if st.session_state.df is not None:
                     fig_stud = go.Figure(data=[go.Pie(
                         labels=labels,
                         values=values_stud,
-                        marker=dict(colors=colors),
+                        marker=dict(colors=colors_chart),
                         textinfo='percent',
                         textfont_size=12,
-                        hole=0.5  # Donut-Chart
+                        hole=0.5
                     )])
                     fig_stud.update_layout(
                         height=250,
@@ -267,7 +457,7 @@ if st.session_state.df is not None:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Rechte Spalte: Kommentarfeld mit vertikaler Trennlinie (OPTION 2)
+            # Rechte Spalte: Kommentarfeld mit vertikaler Trennlinie
             with comment_col:
                 st.markdown("""
                 <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
