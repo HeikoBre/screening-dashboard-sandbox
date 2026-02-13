@@ -44,16 +44,24 @@ if st.session_state.df is None:
     uploaded_file = st.file_uploader('CSV hochladen', type='csv')
     if uploaded_file is not None:
         with st.spinner('Lade & analysiere...'):
-            # Versuche verschiedene Encoding-Optionen
+            # Versuche verschiedene Encoding-Optionen und lade ALLE Spalten
             try:
-                df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
+                df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', 
+                               low_memory=False, engine='python')
             except:
                 uploaded_file.seek(0)
                 try:
-                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8', low_memory=False)
+                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8', 
+                                   low_memory=False, engine='python')
                 except:
                     uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='latin-1', low_memory=False)
+                    try:
+                        df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='latin-1', 
+                                       low_memory=False, engine='python')
+                    except:
+                        uploaded_file.seek(0)
+                        # Letzte Option: c engine ohne low_memory
+                        df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig')
             
             st.session_state.df = df
             st.session_state.total_responses = len(df)
@@ -63,43 +71,75 @@ if st.session_state.df is None:
             matching_columns = []
             all_gene_columns = []
             
+            # Debug-Counter
+            has_gen = 0
+            has_erkrankung = 0
+            has_nationalen = 0
+            has_all_without_kommentar = 0
+            
             # Sammle ALLE Spalten die "Gen: " enthalten
             for col in df.columns:
                 if 'Gen: ' in col:
                     all_gene_columns.append(col)
+                    has_gen += 1
                     
-                # Die ursprüngliche Logik
-                if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
-                    matching_columns.append(col)
-                    gene_start = col.find('Gen: ') + 5
-                    gene_end = col.find(' Erkrankung: ', gene_start)
-                    gene = col[gene_start:gene_end].strip()
-                    
-                    disease_start = col.find('Erkrankung: ', gene_start) + 12
-                    disease_end = col.find('"', disease_start) if '"' in col[disease_start:] else len(col)
-                    disease = col[disease_start:disease_end].strip()
-                    
-                    if gene: 
-                        gene_dict[gene] = disease
+                    if 'Erkrankung: ' in col:
+                        has_erkrankung += 1
+                        
+                        if 'nationalen' in col:
+                            has_nationalen += 1
+                            
+                            if '[Kommentar]' not in col:
+                                has_all_without_kommentar += 1
+                                matching_columns.append(col)
+                                
+                                gene_start = col.find('Gen: ') + 5
+                                gene_end = col.find(' Erkrankung: ', gene_start)
+                                gene = col[gene_start:gene_end].strip()
+                                
+                                disease_start = col.find('Erkrankung: ', gene_start) + 12
+                                disease_end = col.find('"', disease_start) if '"' in col[disease_start:] else len(col)
+                                disease = col[disease_start:disease_end].strip()
+                                
+                                if gene: 
+                                    gene_dict[gene] = disease
             
-            # Debug-Ausgabe
+            # Erweiterte Debug-Ausgabe
             st.info(f"""
             **📊 CSV-Analyse:**
             - Gesamte Spalten in CSV: **{len(df.columns)}**
-            - Spalten mit "Gen: " (alle): **{len(all_gene_columns)}**
-            - Spalten mit "Gen: " + "Erkrankung: " + "nationalen": **{len(matching_columns)}**
+            - Spalten mit "Gen: ": **{has_gen}**
+            - ... davon mit "Erkrankung: ": **{has_erkrankung}**
+            - ... davon mit "nationalen": **{has_nationalen}**
+            - ... davon ohne "[Kommentar]": **{has_all_without_kommentar}**
             - **Extrahierte einzigartige Gene: {len(gene_dict)}**
             """)
             
+            st.warning(f"""
+            **🔍 Analyse:**
+            - Erwartete Gene (100 ÷ 4): **25 Gene**
+            - Tatsächlich gefunden: **{len(gene_dict)} Gene**
+            - **Fehlende Gene: {25 - len(gene_dict)}**
+            """)
+            
             # Zeige erste Gen-Spalten zur Analyse
-            with st.expander("🔍 Alle Gen-Spalten anzeigen (zur Fehlersuche)"):
+            with st.expander("🔍 Alle Gen-Spalten anzeigen (zur Fehlersuche)", expanded=True):
                 st.caption("**Spalten die 'Gen: ' enthalten:**")
-                for i, col in enumerate(all_gene_columns[:30], 1):  # Erste 30
+                for i, col in enumerate(all_gene_columns[:60], 1):  # Zeige mehr Spalten
                     match_indicator = "✅" if col in matching_columns else "❌"
-                    st.caption(f"{match_indicator} {i}. {col[:200]}...")  # Kürze lange Spaltennamen
+                    
+                    # Zeige warum es nicht matched
+                    debug_info = ""
+                    if 'Gen: ' in col and 'Erkrankung: ' in col:
+                        if 'nationalen' not in col:
+                            debug_info = " (fehlt: 'nationalen')"
+                        elif '[Kommentar]' in col:
+                            debug_info = " (ist Kommentar)"
+                    
+                    st.caption(f"{match_indicator} {i}. {col[:200]}{debug_info}...")
                 
-                if len(all_gene_columns) > 30:
-                    st.caption(f"... und {len(all_gene_columns) - 30} weitere Spalten")
+                if len(all_gene_columns) > 60:
+                    st.caption(f"... und {len(all_gene_columns) - 60} weitere Spalten")
             
             # Zeige extrahierte Gene
             with st.expander("📋 Extrahierte Gene"):
