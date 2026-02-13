@@ -222,10 +222,13 @@ def generate_pdf():
             # Links: Datum
             self.drawString(0.75*inch, 0.35*inch, f"Erstellt am: {self.creation_date}")
             
-            # Mitte: Seitenzahl
+            # Mitte: Seitenzahl - mit mehr Platz für zweistellige Zahlen
             page_text = f"Seite {page_num} von {page_count}"
             page_text_width = self.stringWidth(page_text, 'Helvetica', 8)
             center_x = (A4[0] - page_text_width) / 2
+            # Stelle sicher dass genug Platz für den Text ist
+            if center_x < 0.75*inch + 100:  # Mindestabstand zum linken Text
+                center_x = 0.75*inch + 100
             self.drawString(center_x, 0.35*inch, page_text)
             
             # Rechts: UKHD Logo (falls vorhanden)
@@ -327,17 +330,20 @@ def generate_pdf():
         disease = st.session_state.gene_dict.get(gene, '')
         page_num = idx + 3  # Start bei Seite 3
         
-        # Erstelle TOC Zeile mit Punkten
+        # Erstelle TOC Zeile
         toc_text = f'<b>{gene}</b> ({disease})'
-        dots = '.' * 80  # Platzhalter für Punkte
         
         # Tabelle für TOC-Zeile (Text links, Seitenzahl rechts)
-        toc_data = [[Paragraph(toc_text, toc_style), Paragraph(f'{page_num}', toc_style)]]
+        # Verwende Paragraph nur für den Gen-Namen, nicht für die Seitenzahl
+        toc_data = [[Paragraph(toc_text, toc_style), str(page_num)]]
         toc_table = Table(toc_data, colWidths=[5.5*inch, 0.5*inch])
         toc_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, 0), 'LEFT'),
             ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (1, 0), (1, 0), 'Helvetica'),
+            ('FONTSIZE', (1, 0), (1, 0), 10),
+            ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor('#1f77b4')),
         ]))
         story.append(toc_table)
     
