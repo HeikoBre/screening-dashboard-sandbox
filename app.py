@@ -66,7 +66,7 @@ if st.session_state.df is None:
             st.session_state.df = df
             st.session_state.total_responses = len(df)
             
-            # Namens-Extraktion mit verbessertem Debug-Output
+            # Namens-Extraktion - berücksichtigt auch Non-Breaking Spaces
             gene_dict = {}
             matching_columns = []
             all_gene_columns = []
@@ -79,11 +79,12 @@ if st.session_state.df is None:
             
             # Sammle ALLE Spalten die "Gen: " enthalten
             for col in df.columns:
-                if 'Gen: ' in col:
+                if 'Gen:' in col:  # Ohne Leerzeichen, um auch "Gen:\xa0" zu matchen
                     all_gene_columns.append(col)
                     has_gen += 1
                     
-                    if 'Erkrankung: ' in col:
+                    # Prüfe auf Erkrankung (mit normalem Leerzeichen ODER Non-Breaking Space)
+                    if 'Erkrankung:' in col:  # Ohne Leerzeichen danach
                         has_erkrankung += 1
                         
                         if 'nationalen' in col:
@@ -93,13 +94,33 @@ if st.session_state.df is None:
                                 has_all_without_kommentar += 1
                                 matching_columns.append(col)
                                 
-                                gene_start = col.find('Gen: ') + 5
-                                gene_end = col.find(' Erkrankung: ', gene_start)
-                                gene = col[gene_start:gene_end].strip()
+                                # Gen extrahieren
+                                gene_start = col.find('Gen:') + 4
+                                # Überspringe Leerzeichen (normal oder NBSP)
+                                while gene_start < len(col) and col[gene_start] in ' \xa0\t':
+                                    gene_start += 1
+                                    
+                                # Suche nach "Erkrankung:"
+                                gene_end = col.find('Erkrankung:', gene_start)
+                                if gene_end == -1:
+                                    continue
+                                    
+                                gene = col[gene_start:gene_end].strip(' \xa0\t')
                                 
-                                disease_start = col.find('Erkrankung: ', gene_start) + 12
-                                disease_end = col.find('"', disease_start) if '"' in col[disease_start:] else len(col)
-                                disease = col[disease_start:disease_end].strip()
+                                # Erkrankung extrahieren
+                                disease_start = col.find('Erkrankung:', gene_start) + 11
+                                # Überspringe Leerzeichen (normal oder NBSP)
+                                while disease_start < len(col) and col[disease_start] in ' \xa0\t':
+                                    disease_start += 1
+                                    
+                                # Finde Ende (vor [Kommentar] oder am Ende)
+                                disease_end = len(col)
+                                for marker in [' [', '\n', '\t', '  ']:
+                                    pos = col.find(marker, disease_start)
+                                    if pos != -1 and pos < disease_end:
+                                        disease_end = pos
+                                        
+                                disease = col[disease_start:disease_end].strip(' \xa0\t')
                                 
                                 if gene: 
                                     gene_dict[gene] = disease
