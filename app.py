@@ -43,14 +43,33 @@ if st.session_state.df is None:
     uploaded_file = st.file_uploader('CSV hochladen', type='csv')
     if uploaded_file is not None:
         with st.spinner('Lade & analysiere...'):
-            df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
+            # Versuche verschiedene Encoding-Optionen
+            try:
+                df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', low_memory=False)
+            except:
+                uploaded_file.seek(0)
+                try:
+                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8', low_memory=False)
+                except:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='latin-1', low_memory=False)
+            
             st.session_state.df = df
             st.session_state.total_responses = len(df)
             
-            # Namens-Extraktion
+            # Namens-Extraktion mit verbessertem Debug-Output
             gene_dict = {}
+            matching_columns = []
+            all_gene_columns = []
+            
+            # Sammle ALLE Spalten die "Gen: " enthalten
             for col in df.columns:
+                if 'Gen: ' in col:
+                    all_gene_columns.append(col)
+                    
+                # Die ursprüngliche Logik
                 if 'Gen: ' in col and 'Erkrankung: ' in col and 'nationalen' in col and '[Kommentar]' not in col:
+                    matching_columns.append(col)
                     gene_start = col.find('Gen: ') + 5
                     gene_end = col.find(' Erkrankung: ', gene_start)
                     gene = col[gene_start:gene_end].strip()
@@ -59,7 +78,32 @@ if st.session_state.df is None:
                     disease_end = col.find('"', disease_start) if '"' in col[disease_start:] else len(col)
                     disease = col[disease_start:disease_end].strip()
                     
-                    if gene: gene_dict[gene] = disease
+                    if gene: 
+                        gene_dict[gene] = disease
+            
+            # Debug-Ausgabe
+            st.info(f"""
+            **📊 CSV-Analyse:**
+            - Gesamte Spalten in CSV: **{len(df.columns)}**
+            - Spalten mit "Gen: " (alle): **{len(all_gene_columns)}**
+            - Spalten mit "Gen: " + "Erkrankung: " + "nationalen": **{len(matching_columns)}**
+            - **Extrahierte einzigartige Gene: {len(gene_dict)}**
+            """)
+            
+            # Zeige erste Gen-Spalten zur Analyse
+            with st.expander("🔍 Alle Gen-Spalten anzeigen (zur Fehlersuche)"):
+                st.caption("**Spalten die 'Gen: ' enthalten:**")
+                for i, col in enumerate(all_gene_columns[:30], 1):  # Erste 30
+                    match_indicator = "✅" if col in matching_columns else "❌"
+                    st.caption(f"{match_indicator} {i}. {col[:200]}...")  # Kürze lange Spaltennamen
+                
+                if len(all_gene_columns) > 30:
+                    st.caption(f"... und {len(all_gene_columns) - 30} weitere Spalten")
+            
+            # Zeige extrahierte Gene
+            with st.expander("📋 Extrahierte Gene"):
+                for gene, disease in sorted(gene_dict.items()):
+                    st.caption(f"**{gene}**: {disease}")
             
             st.session_state.genes = sorted(gene_dict.keys())
             st.session_state.gene_dict = gene_dict
@@ -99,7 +143,7 @@ if st.session_state.df is None:
             
             st.session_state.summary_df = pd.DataFrame(summary_data)
             
-        st.success(f'{len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
+        st.success(f'✅ {len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
         st.rerun()
 else:
     if st.sidebar.button('Neue CSV 🗑️'): 
