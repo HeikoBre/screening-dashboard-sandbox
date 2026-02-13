@@ -37,7 +37,6 @@ if 'gene_dict' not in st.session_state: st.session_state.gene_dict = {}
 if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
-if 'hide_debug' not in st.session_state: st.session_state.hide_debug = False
 
 # Upload
 if st.session_state.df is None:
@@ -125,48 +124,6 @@ if st.session_state.df is None:
                                 if gene: 
                                     gene_dict[gene] = disease
             
-            # Erweiterte Debug-Ausgabe
-            st.info(f"""
-            **📊 CSV-Analyse:**
-            - Gesamte Spalten in CSV: **{len(df.columns)}**
-            - Spalten mit "Gen: ": **{has_gen}**
-            - ... davon mit "Erkrankung: ": **{has_erkrankung}**
-            - ... davon mit "nationalen": **{has_nationalen}**
-            - ... davon ohne "[Kommentar]": **{has_all_without_kommentar}**
-            - **Extrahierte einzigartige Gene: {len(gene_dict)}**
-            """)
-            
-            st.warning(f"""
-            **🔍 Analyse:**
-            - Erwartete Gene (100 ÷ 4): **25 Gene**
-            - Tatsächlich gefunden: **{len(gene_dict)} Gene**
-            - **Fehlende Gene: {25 - len(gene_dict)}**
-            """)
-            
-            # Zeige erste Gen-Spalten zur Analyse
-            with st.expander("🔍 Alle Gen-Spalten anzeigen (zur Fehlersuche)", expanded=True):
-                st.caption("**Spalten die 'Gen: ' enthalten:**")
-                for i, col in enumerate(all_gene_columns[:60], 1):  # Zeige mehr Spalten
-                    match_indicator = "✅" if col in matching_columns else "❌"
-                    
-                    # Zeige warum es nicht matched
-                    debug_info = ""
-                    if 'Gen: ' in col and 'Erkrankung: ' in col:
-                        if 'nationalen' not in col:
-                            debug_info = " (fehlt: 'nationalen')"
-                        elif '[Kommentar]' in col:
-                            debug_info = " (ist Kommentar)"
-                    
-                    st.caption(f"{match_indicator} {i}. {col[:200]}{debug_info}...")
-                
-                if len(all_gene_columns) > 60:
-                    st.caption(f"... und {len(all_gene_columns) - 60} weitere Spalten")
-            
-            # Zeige extrahierte Gene
-            with st.expander("📋 Extrahierte Gene"):
-                for gene, disease in sorted(gene_dict.items()):
-                    st.caption(f"**{gene}**: {disease}")
-            
             st.session_state.genes = sorted(gene_dict.keys())
             st.session_state.gene_dict = gene_dict
             
@@ -206,11 +163,7 @@ if st.session_state.df is None:
             st.session_state.summary_df = pd.DataFrame(summary_data)
             
         st.success(f'✅ {len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
-        
-        # Button um Debug-Info auszublenden und fortzufahren
-        if st.button('🚀 Weiter zur Analyse', type='primary'):
-            st.session_state['hide_debug'] = True
-            st.rerun()
+        st.rerun()
 else:
     if st.sidebar.button('Neue CSV 🗑️'): 
         for k in list(st.session_state.keys()): del st.session_state[k]
@@ -527,7 +480,7 @@ def generate_pdf():
     return pdf_buffer.getvalue()
 
 # Sidebar Export
-if st.session_state.summary_df is not None and st.session_state.hide_debug:
+if st.session_state.summary_df is not None:
     st.sidebar.markdown("### 📥 Export")
     
     # Statistik über Kommentare
@@ -575,7 +528,7 @@ if st.session_state.summary_df is not None and st.session_state.hide_debug:
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
-if st.session_state.df is not None and st.session_state.hide_debug:
+if st.session_state.df is not None:
     df = st.session_state.df
     tabs = st.tabs(st.session_state.genes)
     
