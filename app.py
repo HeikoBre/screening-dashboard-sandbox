@@ -37,6 +37,7 @@ if 'gene_dict' not in st.session_state: st.session_state.gene_dict = {}
 if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
+if 'hide_debug' not in st.session_state: st.session_state.hide_debug = False
 
 # Upload
 if st.session_state.df is None:
@@ -144,7 +145,11 @@ if st.session_state.df is None:
             st.session_state.summary_df = pd.DataFrame(summary_data)
             
         st.success(f'✅ {len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
-        st.rerun()
+        
+        # Button um Debug-Info auszublenden und fortzufahren
+        if st.button('🚀 Weiter zur Analyse', type='primary'):
+            st.session_state['hide_debug'] = True
+            st.rerun()
 else:
     if st.sidebar.button('Neue CSV 🗑️'): 
         for k in list(st.session_state.keys()): del st.session_state[k]
@@ -461,7 +466,7 @@ def generate_pdf():
     return pdf_buffer.getvalue()
 
 # Sidebar Export
-if st.session_state.summary_df is not None:
+if st.session_state.summary_df is not None and st.session_state.hide_debug:
     st.sidebar.markdown("### 📥 Export")
     
     # Statistik über Kommentare
@@ -509,7 +514,7 @@ if st.session_state.summary_df is not None:
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
-if st.session_state.df is not None:
+if st.session_state.df is not None and st.session_state.hide_debug:
     df = st.session_state.df
     tabs = st.tabs(st.session_state.genes)
     
