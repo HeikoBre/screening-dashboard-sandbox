@@ -459,37 +459,70 @@ def generate_pdf():
         # === SEKTION 1: UMFRAGEERGEBNISSE ===
         story.append(Paragraph("<b>Ergebnis der Umfrage:</b>", section_style))
         
-        # Zeige automatische Bewertung basierend auf Umfrage
+        # Zeige automatische Bewertung basierend auf Umfrage - KÜRZERER TEXT
         if nat_ja_pct >= 80:
             result_color = colors.HexColor('#E8F5E9')
             text_color = colors.HexColor('#2E7D32')
-            result_text = "Die Umfrage ergab ≥80% Zustimmung für ein nationales genomisches Neugeborenenscreening"
+            result_text = "≥80% Zustimmung für nationales gNBS"
         elif stud_ja_pct >= 80:
             result_color = colors.HexColor('#FFF8E1')
             text_color = colors.HexColor('#F57F17')
-            result_text = "Die Umfrage ergab ≥80% Zustimmung für eine wissenschaftliche Studie zum genomischen Neugeborenenscreening"
+            result_text = "≥80% Zustimmung für wissenschaftliche Studie"
         else:
             result_color = colors.HexColor('#FFEBEE')
             text_color = colors.HexColor('#C62828')
-            result_text = "Die Umfrage ergab <80% Zustimmung für eine Berücksichtigung im genomischen Neugeborenenscreening"
+            result_text = "<80% Zustimmung für Berücksichtigung im gNBS"
         
         result_data = [[result_text]]
         result_table = Table(result_data, colWidths=[5.5*inch])
         result_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), result_color),
             ('TEXTCOLOR', (0, 0), (-1, -1), text_color),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('LEFTPADDING', (0, 0), (-1, -1), 12),
             ('ROUNDEDCORNERS', [5, 5, 5, 5]),
         ]))
         story.append(result_table)
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 10))
         
-        # === SEKTION 2: ENTSCHEIDUNG DER EXPERTENGRUPPE ===
+        # Kommentare aus Umfrage direkt nach dem Ergebnis
+        story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
+        
+        # Kommentare aus Umfrage direkt nach dem Ergebnis
+        story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
+        
+        # Kommentare aus Umfrage - National
+        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
+        if nat_comments:
+            story.append(Paragraph("National:", comment_style))
+            for idx, comment in enumerate(nat_comments, 1):
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                comment_para = ParagraphStyle('CommentIndented', parent=comment_style, leftIndent=30, fontSize=8)
+                story.append(Paragraph(f"• {safe_comment}", comment_para))
+            story.append(Spacer(1, 6))
+        
+        # Kommentare aus Umfrage - Studie
+        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+        if stud_comments:
+            story.append(Paragraph("Studie:", comment_style))
+            for idx, comment in enumerate(stud_comments, 1):
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                comment_para = ParagraphStyle('CommentIndented2', parent=comment_style, leftIndent=30, fontSize=8)
+                story.append(Paragraph(f"• {safe_comment}", comment_para))
+            story.append(Spacer(1, 6))
+        
+        if not nat_comments and not stud_comments:
+            story.append(Paragraph("Keine Kommentare", comment_style))
+            story.append(Spacer(1, 6))
+        
+        # Trennlinie zwischen Umfrage und Besprechung
+        story.append(Spacer(1, 15))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=15))
+        
+        # === SEKTION 2: ERGEBNIS DER EXPERTENGRUPPEN-BESPRECHUNG ===
         decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
         
         story.append(Paragraph("<b>Entscheidung der Expertengruppe:</b>", section_style))
@@ -537,41 +570,12 @@ def generate_pdf():
             ]))
             story.append(no_decision_table)
         
-        story.append(Spacer(1, 15))
-        
-        # === SEKTION 3: KOMMENTARE AUS DER UMFRAGE ===
-        story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
-        
-        # Kommentare aus Umfrage - National
-        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-        if nat_comments:
-            story.append(Paragraph("Kommentare National:", comment_style))
-            for idx, comment in enumerate(nat_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                comment_para = ParagraphStyle('CommentIndented', parent=comment_style, leftIndent=30, fontSize=8)
-                story.append(Paragraph(f"• {safe_comment}", comment_para))
-            story.append(Spacer(1, 8))
-        
-        # Kommentare aus Umfrage - Studie
-        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
-        if stud_comments:
-            story.append(Paragraph("Kommentare Studie:", comment_style))
-            for idx, comment in enumerate(stud_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                comment_para = ParagraphStyle('CommentIndented2', parent=comment_style, leftIndent=30, fontSize=8)
-                story.append(Paragraph(f"• {safe_comment}", comment_para))
-            story.append(Spacer(1, 8))
-        
-        if not nat_comments and not stud_comments:
-            story.append(Paragraph("Keine Kommentare", comment_style))
-            story.append(Spacer(1, 8))
-        
         story.append(Spacer(1, 10))
         
-        # === SEKTION 4: ZUSÄTZLICHE NOTIZEN DER BESPRECHUNG ===
+        # Zusätzliche Notizen der Besprechung direkt nach der Entscheidung
         reviewer_comment = st.session_state.user_comments.get(gene, '')
         if reviewer_comment:
-            story.append(Paragraph("<b>Zusätzliche Notizen der Expertengruppe:</b>", section_style))
+            story.append(Paragraph("<b>Zusätzliche Notizen:</b>", section_style))
             safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             for para in safe_reviewer_comment.split('\n'):
                 if para.strip():
@@ -603,13 +607,15 @@ if st.session_state.summary_df is not None:
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
     # Zeige welche Gene bewertet sind
-    if st.session_state.gene_decisions:
-        with st.sidebar.expander("📋 Bewertete Gene"):
-            for gene, decision in st.session_state.gene_decisions.items():
-                if decision and decision != 'Noch nicht bewertet':
-                    # Emoji extrahieren
-                    emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
-                    st.sidebar.caption(f"{emoji} {gene}")
+    decided_genes = {gene: decision for gene, decision in st.session_state.gene_decisions.items() 
+                     if decision and decision != 'Noch nicht bewertet'}
+    
+    if decided_genes:
+        with st.sidebar.expander("📋 Bewertete Gene", expanded=False):
+            for gene, decision in decided_genes.items():
+                # Emoji extrahieren
+                emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
+                st.sidebar.caption(f"{emoji} {gene}")
     
     today = datetime.now().strftime("%Y%m%d")
     
