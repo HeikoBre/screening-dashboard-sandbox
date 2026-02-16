@@ -36,10 +36,10 @@ h4 { font-size: 15px !important; }
 
 [data-baseweb="tab"] {
     border-radius: 6px;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background-color: white;
     border: 1px solid #e0e0e0;
-    font-size: 13px;
+    font-size: 12px;
     transition: all 0.2s ease;
 }
 
@@ -51,10 +51,10 @@ h4 { font-size: 15px !important; }
 [aria-selected="true"][data-baseweb="tab"] {
     background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
     color: white !important;
-    border: 2px solid #3d8b40;
+    border: 1px solid #3d8b40;
     font-weight: 600;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
-    transform: translateY(-1px);
+    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.25);
+    transform: translateY(-0.5px);
 }
 
 [aria-selected="true"][data-baseweb="tab"] p {
@@ -456,11 +456,45 @@ def generate_pdf():
         story.append(t)
         story.append(Spacer(1, 15))
         
-        # Empfehlung der Besprechung (prominent anzeigen)
+        # === SEKTION 1: UMFRAGEERGEBNISSE ===
+        story.append(Paragraph("<b>Ergebnis der Umfrage:</b>", section_style))
+        
+        # Zeige automatische Bewertung basierend auf Umfrage
+        if nat_ja_pct >= 80:
+            result_color = colors.HexColor('#E8F5E9')
+            text_color = colors.HexColor('#2E7D32')
+            result_text = "Die Umfrage ergab ≥80% Zustimmung für ein nationales genomisches Neugeborenenscreening"
+        elif stud_ja_pct >= 80:
+            result_color = colors.HexColor('#FFF8E1')
+            text_color = colors.HexColor('#F57F17')
+            result_text = "Die Umfrage ergab ≥80% Zustimmung für eine wissenschaftliche Studie zum genomischen Neugeborenenscreening"
+        else:
+            result_color = colors.HexColor('#FFEBEE')
+            text_color = colors.HexColor('#C62828')
+            result_text = "Die Umfrage ergab <80% Zustimmung für eine Berücksichtigung im genomischen Neugeborenenscreening"
+        
+        result_data = [[result_text]]
+        result_table = Table(result_data, colWidths=[5.5*inch])
+        result_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), result_color),
+            ('TEXTCOLOR', (0, 0), (-1, -1), text_color),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+        ]))
+        story.append(result_table)
+        story.append(Spacer(1, 15))
+        
+        # === SEKTION 2: ENTSCHEIDUNG DER EXPERTENGRUPPE ===
         decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
+        
+        story.append(Paragraph("<b>Entscheidung der Expertengruppe:</b>", section_style))
+        
         if decision and decision != 'Noch nicht bewertet':
-            story.append(Paragraph("<b>Empfehlung der Expertengruppe:</b>", section_style))
-            
             # Entferne Emoji für PDF
             decision_text = decision.replace('🟢 ', '').replace('🟡 ', '').replace('🔴 ', '').replace('⚪ ', '')
             
@@ -487,64 +521,13 @@ def generate_pdf():
                 ('ROUNDEDCORNERS', [5, 5, 5, 5]),
             ]))
             story.append(decision_table)
-            story.append(Spacer(1, 15))
-        
-        # Kommentare aus Umfrage - National
-        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-        if nat_comments:
-            story.append(Paragraph("<b>Kommentare National:</b>", section_style))
-            for idx, comment in enumerate(nat_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
-            story.append(Spacer(1, 10))
-        
-        # Kommentare aus Umfrage - Studie
-        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
-        if stud_comments:
-            story.append(Paragraph("<b>Kommentare Studie:</b>", section_style))
-            for idx, comment in enumerate(stud_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                story.append(Paragraph(f"{idx}. {safe_comment}", comment_style))
-            story.append(Spacer(1, 10))
-        
-        # Zusätzliche Notizen der Besprechung
-        reviewer_comment = st.session_state.user_comments.get(gene, '')
-        if reviewer_comment:
-            story.append(Paragraph("<b>Zusätzliche Notizen:</b>", section_style))
-            safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            for para in safe_reviewer_comment.split('\n'):
-                if para.strip():
-                    story.append(Paragraph(para, comment_style))
-            story.append(Spacer(1, 10))
-        
-        # Horizontaler Trennstrich
-        story.append(Spacer(1, 5))
-        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
-        
-        # Zeige Hinweis wenn keine Empfehlung gegeben wurde
-        if not decision or decision == 'Noch nicht bewertet':
-            story.append(Paragraph(f"<b>Automatische Bewertung basierend auf Umfrageergebnissen:</b>", section_style))
-            
-            # Ampel-Logik nur als Vorschlag wenn keine manuelle Entscheidung getroffen wurde
-            if nat_ja_pct >= 80:
-                ampel_color = colors.HexColor('#E8F5E9')
-                text_color = colors.HexColor('#2E7D32')
-                ampel_text = "Vorschlag: Aufnahme in nationales gNBS (≥80% Zustimmung national)"
-            elif stud_ja_pct >= 80:
-                ampel_color = colors.HexColor('#FFF8E1')
-                text_color = colors.HexColor('#F57F17')
-                ampel_text = "Vorschlag: Aufnahme in wissenschaftliche gNBS Studie (≥80% Zustimmung Studie)"
-            else:
-                ampel_color = colors.HexColor('#FFEBEE')
-                text_color = colors.HexColor('#C62828')
-                ampel_text = "Vorschlag: Keine Berücksichtigung im gNBS (<80% Zustimmung)"
-            
-            # Hellere Box für Vorschläge
-            ampel_data = [[ampel_text]]
-            ampel_table = Table(ampel_data, colWidths=[5.5*inch])
-            ampel_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), ampel_color),
-                ('TEXTCOLOR', (0, 0), (-1, -1), text_color),
+        else:
+            # Keine Entscheidung getroffen
+            no_decision_data = [["Noch nicht bewertet"]]
+            no_decision_table = Table(no_decision_data, colWidths=[5.5*inch])
+            no_decision_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F5F5F5')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#999999')),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
@@ -552,11 +535,52 @@ def generate_pdf():
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                 ('ROUNDEDCORNERS', [5, 5, 5, 5]),
             ]))
-            
-            story.append(ampel_table)
+            story.append(no_decision_table)
+        
+        story.append(Spacer(1, 15))
+        
+        # === SEKTION 3: KOMMENTARE AUS DER UMFRAGE ===
+        story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
+        
+        # Kommentare aus Umfrage - National
+        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
+        if nat_comments:
+            story.append(Paragraph("Kommentare National:", comment_style))
+            for idx, comment in enumerate(nat_comments, 1):
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                comment_para = ParagraphStyle('CommentIndented', parent=comment_style, leftIndent=30, fontSize=8)
+                story.append(Paragraph(f"• {safe_comment}", comment_para))
+            story.append(Spacer(1, 8))
+        
+        # Kommentare aus Umfrage - Studie
+        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+        if stud_comments:
+            story.append(Paragraph("Kommentare Studie:", comment_style))
+            for idx, comment in enumerate(stud_comments, 1):
+                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                comment_para = ParagraphStyle('CommentIndented2', parent=comment_style, leftIndent=30, fontSize=8)
+                story.append(Paragraph(f"• {safe_comment}", comment_para))
+            story.append(Spacer(1, 8))
+        
+        if not nat_comments and not stud_comments:
+            story.append(Paragraph("Keine Kommentare", comment_style))
+            story.append(Spacer(1, 8))
+        
+        story.append(Spacer(1, 10))
+        
+        # === SEKTION 4: ZUSÄTZLICHE NOTIZEN DER BESPRECHUNG ===
+        reviewer_comment = st.session_state.user_comments.get(gene, '')
+        if reviewer_comment:
+            story.append(Paragraph("<b>Zusätzliche Notizen der Expertengruppe:</b>", section_style))
+            safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            for para in safe_reviewer_comment.split('\n'):
+                if para.strip():
+                    story.append(Paragraph(para, comment_style))
             story.append(Spacer(1, 10))
         
+        # Horizontaler Trennstrich am Ende
         story.append(Spacer(1, 5))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
         
         # Seitenumbruch nach jedem Gen (außer beim letzten)
         if gene != st.session_state.genes[-1]:
@@ -816,31 +840,32 @@ if st.session_state.df is not None:
                 
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 
-                # Optionales Kommentarfeld
-                with st.expander("💬 Zusätzliche Notizen (optional)", expanded=bool(st.session_state.user_comments.get(gene, '').strip())):
-                    current_comment = st.session_state.user_comments.get(gene, '')
-                    
-                    user_comment = st.text_area(
-                        f"Notizen_{gene}",
-                        value=current_comment,
-                        height=200,
-                        key=f'comment_input_{gene}_{tab_idx}',
-                        placeholder="Hier können Sie zusätzliche Anmerkungen, Begründungen oder Diskussionspunkte dokumentieren...",
-                        label_visibility="collapsed"
-                    )
-                    
-                    col_save, col_clear = st.columns(2)
-                    with col_save:
-                        if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}', use_container_width=True):
-                            st.session_state.user_comments[gene] = user_comment
-                            st.rerun()
-                    with col_clear:
-                        if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}', use_container_width=True):
-                            st.session_state.user_comments[gene] = ''
-                            st.rerun()
-                    
-                    if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
-                        st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
+                # Kommentarfeld - immer sichtbar, aber optional
+                st.markdown("<h4 style='margin-top: 0px; margin-bottom: 8px; font-size: 13px; color: #666;'>Zusätzliche Notizen (optional)</h4>", unsafe_allow_html=True)
+                
+                current_comment = st.session_state.user_comments.get(gene, '')
+                
+                user_comment = st.text_area(
+                    f"Notizen_{gene}",
+                    value=current_comment,
+                    height=180,
+                    key=f'comment_input_{gene}_{tab_idx}',
+                    placeholder="Hier können Sie zusätzliche Anmerkungen, Begründungen oder Diskussionspunkte dokumentieren...",
+                    label_visibility="collapsed"
+                )
+                
+                col_save, col_clear = st.columns(2)
+                with col_save:
+                    if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}', use_container_width=True):
+                        st.session_state.user_comments[gene] = user_comment
+                        st.rerun()
+                with col_clear:
+                    if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}', use_container_width=True):
+                        st.session_state.user_comments[gene] = ''
+                        st.rerun()
+                
+                if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
+                    st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
                 
                 # Zeige aktuelle Bewertung
                 if decision != 'Noch nicht bewertet':
