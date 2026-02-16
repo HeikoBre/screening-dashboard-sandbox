@@ -132,6 +132,43 @@ div[data-baseweb="select"] > div {
     cursor: pointer !important;
 }
 </style>
+
+<script>
+// Keyboard navigation for tabs
+document.addEventListener('keydown', function(e) {
+    // Ignore if user is typing in input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    if (tabs.length === 0) return;
+    
+    let activeIndex = -1;
+    tabs.forEach((tab, index) => {
+        if (tab.getAttribute('aria-selected') === 'true') {
+            activeIndex = index;
+        }
+    });
+    
+    if (activeIndex === -1) return;
+    
+    // Arrow Right -> next tab
+    if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const nextIndex = (activeIndex + 1) % tabs.length;
+        tabs[nextIndex].click();
+    }
+    
+    // Arrow Left -> previous tab
+    if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const prevIndex = (activeIndex - 1 + tabs.length) % tabs.length;
+        tabs[prevIndex].click();
+    }
+});
+</script>
+
 """, unsafe_allow_html=True)
 
 st.markdown("# Expertenreview gNBS")
@@ -278,24 +315,139 @@ else:
 
 # Funktion zum Generieren der CSV
 def generate_csv():
+    """
+    Generiert CSV-Export mit vollständiger Delphi-Prozess Dokumentation
+    Struktur ermöglicht Nachvollziehbarkeit von Umfrage-Ergebnis zu finaler Entscheidung
+    """
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
-    export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     
-    # Entscheidungen hinzufügen
+    # === METADATEN ===
+    export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
+    export_df.insert(1, 'Export_Datum', datetime.now().strftime('%Y-%m-%d'))
+    export_df.insert(2, 'Export_Zeit', datetime.now().strftime('%H:%M:%S'))
+    
+    # === UMFRAGE-ERGEBNISSE (Delphi Runde 1) ===
+    # Bereits vorhanden: National_Ja_pct, National_n, Studie_Ja_pct, Studie_n
+    
+    # Absolute Zahlen für Transparenz
+    national_ja = []
+    national_nein = []
+    national_na = []
+    studie_ja = []
+    studie_nein = []
+    studie_na = []
+    
+    df = st.session_state.df
+    for gene in export_df['Gen']:
+        nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
+        stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+        
+        nat_data = df[nat_q_cols].stack().dropna()
+        stud_data = df[stud_q_cols].stack().dropna()
+        
+        national_ja.append((nat_data == 'Ja').sum())
+        national_nein.append((nat_data == 'Nein').sum())
+        national_na.append((nat_data == 'Ich kann diese Frage nicht beantworten').sum())
+        
+        studie_ja.append((stud_data == 'Ja').sum())
+        studie_nein.append((stud_data == 'Nein').sum())
+        studie_na.append((stud_data == 'Ich kann diese Frage nicht beantworten').sum())
+    
+    export_df['National_Ja_n'] = national_ja
+    export_df['National_Nein_n'] = national_nein
+    export_df['National_NA_n'] = national_na
+    export_df['Studie_Ja_n'] = studie_ja
+    export_df['Studie_Nein_n'] = studie_nein
+    export_df['Studie_NA_n'] = studie_na
+    
+    # === AUTOMATISCHE EMPFEHLUNG (basierend auf Umfrage) ===
+    umfrage_empfehlung = []
+    for idx, row in export_df.iterrows():
+        if row['National_Ja_pct'] >= 80:
+            umfrage_empfehlung.append('Nationales gNBS')
+        elif row['Studie_Ja_pct'] >= 80:
+            umfrage_empfehlung.append('Wissenschaftliche Studie')
+        else:
+            umfrage_empfehlung.append('Keine Berücksichtigung')
+    
+    export_df['Umfrage_Empfehlung'] = umfrage_empfehlung
+    
+    # === EXPERTENGRUPPEN-ENTSCHEIDUNG (Delphi Runde 2 / Konsensus) ===
     decisions = []
+    decision_clean = []  # Ohne Emojis für bessere Lesbarkeit
     for gene in export_df['Gen']:
         decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
         decisions.append(decision)
-    export_df['Empfehlung'] = decisions
+        
+        # Bereinige für CSV (ohne Emojis)
+        clean = decision.replace('🟢 ', '').replace('🟡 ', '').replace('🔴 ', '').replace('⚪ ', '')
+        decision_clean.append(clean)
     
-    # User-Kommentare hinzufügen
+    export_df['Expertengruppe_Entscheidung'] = decision_clean
+    
+    # === ABWEICHUNGS-ANALYSE ===
+    # Zeigt ob Expertengruppe von Umfrage-Empfehlung abweicht
+    abweichung = []
+    abweichung_typ = []
+    
+    for idx, row in export_df.iterrows():
+        umfrage = row['Umfrage_Empfehlung']
+        experte = row['Expertengruppe_Entscheidung']
+        
+        if experte == 'Noch nicht bewertet':
+            abweichung.append('Nicht bewertet')
+            abweichung_typ.append('')
+        elif 'Nationales gNBS' in experte and umfrage == 'Nationales gNBS':
+            abweichung.append('Keine Abweichung')
+            abweichung_typ.append('')
+        elif 'wissenschaftliche' in experte and umfrage == 'Wissenschaftliche Studie':
+            abweichung.append('Keine Abweichung')
+            abweichung_typ.append('')
+        elif 'Keine Berücksichtigung' in experte and umfrage == 'Keine Berücksichtigung':
+            abweichung.append('Keine Abweichung')
+            abweichung_typ.append('')
+        else:
+            abweichung.append('Abweichung')
+            abweichung_typ.append(f'Umfrage: {umfrage} → Experten: {experte}')
+    
+    export_df['Abweichung_von_Umfrage'] = abweichung
+    export_df['Abweichung_Details'] = abweichung_typ
+    
+    # === ZUSÄTZLICHE DOKUMENTATION ===
     reviewer_comments = []
     for gene in export_df['Gen']:
         comment = st.session_state.user_comments.get(gene, '')
         reviewer_comments.append(comment)
     
-    export_df['Zusaetzliche_Notizen'] = reviewer_comments
+    export_df['Expertengruppe_Notizen'] = reviewer_comments
+    
+    # === SPALTEN-REIHENFOLGE FÜR PUBLIKATION ===
+    column_order = [
+        # Metadaten
+        'Export_Datum', 'Export_Zeit', 'Gesamt_Responses',
+        
+        # Gen-Information
+        'Gen', 'Erkrankung',
+        
+        # Umfrage-Ergebnisse National
+        'National_n', 'National_Ja_n', 'National_Nein_n', 'National_NA_n', 'National_Ja_pct', 'National_80',
+        
+        # Umfrage-Ergebnisse Studie
+        'Studie_n', 'Studie_Ja_n', 'Studie_Nein_n', 'Studie_NA_n', 'Studie_Ja_pct',
+        
+        # Umfrage-Kommentare
+        'Kommentare_National', 'Kommentare_Studie',
+        
+        # Delphi-Prozess
+        'Umfrage_Empfehlung',
+        'Expertengruppe_Entscheidung',
+        'Abweichung_von_Umfrage',
+        'Abweichung_Details',
+        'Expertengruppe_Notizen'
+    ]
+    
+    export_df = export_df[column_order]
     
     export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
     return csv_buffer.getvalue().encode('utf-8-sig')
@@ -737,11 +889,15 @@ def generate_pdf():
 if st.session_state.summary_df is not None:
     st.sidebar.markdown("### 📥 Export")
     
-    # Statistik über Bewertungen
+    # Bewertungsfortschritt in Sidebar
     num_decided = len([d for d in st.session_state.gene_decisions.values() if d and d != 'Noch nicht bewertet'])
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
-    st.sidebar.caption(f"✅ {num_decided}/{total_genes} Gene bewertet")
+    
+    # Kompakter Fortschritt in Sidebar
+    progress_pct = num_decided / total_genes if total_genes > 0 else 0
+    st.sidebar.progress(progress_pct, text=f"📊 {num_decided}/{total_genes} bewertet ({progress_pct*100:.0f}%)")
+    
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
     # Zeige welche Gene bewertet sind
@@ -790,30 +946,6 @@ if st.session_state.summary_df is not None:
 # Tabs (Visualisierung mit erweiterter Anzeige)
 if st.session_state.df is not None:
     df = st.session_state.df
-    
-    # Fortschrittsanzeige mit visueller Gen-Übersicht
-    num_decided = len([d for d in st.session_state.gene_decisions.values() if d and d != 'Noch nicht bewertet'])
-    total_genes = len(st.session_state.genes)
-    progress_pct = num_decided / total_genes if total_genes > 0 else 0
-    
-    # Kompakte visuelle Übersicht
-    st.markdown(f"""
-    <div style='background-color: #fafafa; padding: 6px 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e8e8e8;'>
-        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>
-            <span style='font-weight: 500; color: #555; font-size: 11px;'>Bewertungsfortschritt</span>
-            <span style='color: #777; font-size: 10px;'>{num_decided} von {total_genes} ({progress_pct*100:.0f}%)</span>
-        </div>
-        <div style='background-color: #e8e8e8; height: 5px; border-radius: 3px; overflow: hidden;'>
-            <div style='background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%); 
-                        height: 100%; 
-                        width: {progress_pct*100}%;
-                        transition: width 0.3s ease;'></div>
-        </div>
-        <div style='display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap;'>
-            {''.join([f"<span style='background-color: {'#4CAF50' if st.session_state.gene_decisions.get(gene, '') and st.session_state.gene_decisions.get(gene, '') != 'Noch nicht bewertet' else '#ddd'}; width: 5px; height: 5px; border-radius: 50%; display: inline-block;' title='{gene}: {st.session_state.gene_decisions.get(gene, 'Nicht bewertet')}'></span>" for gene in st.session_state.genes])}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
     
     tabs = st.tabs([f"*{gene}*" for gene in st.session_state.genes])
     
