@@ -13,6 +13,64 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.pdfgen import canvas
 import tempfile
 import os
+import subprocess
+
+# Version und Repository-Info
+GITHUB_REPO = "https://github.com/HeikoBre/screening-dashboard-sandbox"
+APP_VERSION = "1.0.0"  # Fallback-Version
+
+def get_app_version():
+    """Versucht die App-Version aus verschiedenen Quellen zu ermitteln"""
+    try:
+        # Versuch 1: Git Tag auslesen (wenn lokal geklont)
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except:
+        pass
+    
+    try:
+        # Versuch 2: Git Commit Hash (kurz) + Branch
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            commit_hash = result.stdout.strip()
+            
+            # Branch Name
+            branch_result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if branch_result.returncode == 0 and branch_result.stdout.strip():
+                branch = branch_result.stdout.strip()
+                return f"{APP_VERSION}-{branch}-{commit_hash}"
+            
+            return f"{APP_VERSION}-{commit_hash}"
+    except:
+        pass
+    
+    # Versuch 3: VERSION Datei lesen (falls vorhanden)
+    try:
+        version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
+        if os.path.exists(version_file):
+            with open(version_file, 'r') as f:
+                return f.read().strip()
+    except:
+        pass
+    
+    # Fallback
+    return APP_VERSION
 
 # Sidebar standardmäßig zugeklappt
 st.set_page_config(initial_sidebar_state="collapsed")
@@ -626,7 +684,7 @@ def generate_pdf():
     
     story.append(Paragraph("<b>Generiert mit:</b>", info_style))
     story.append(Paragraph("Expertenreview gNBS App", info_style))
-    story.append(Paragraph("Version: 1.0.0", info_style))
+    story.append(Paragraph(f"Version: {get_app_version()}", info_style))
     story.append(Spacer(1, 20))
     
     story.append(Paragraph("<b>Erstellungsdatum:</b>", info_style))
@@ -634,8 +692,7 @@ def generate_pdf():
     story.append(Spacer(1, 20))
     
     story.append(Paragraph("<b>Repository:</b>", info_style))
-    story.append(Paragraph("GitHub: [Repository-URL hier einfügen]", info_style))
-    story.append(Paragraph("Beispiel: https://github.com/your-org/gnbs-review-app", info_style))
+    story.append(Paragraph(f"{GITHUB_REPO}", info_style))
     story.append(Spacer(1, 20))
     
     story.append(Paragraph("<b>Beschreibung:</b>", info_style))
