@@ -103,7 +103,7 @@ pip install -r requirements.txt
 
 4. **App starten:**
 ```bash
-streamlit run streamlit_app_improved.py
+streamlit run app.py
 ```
 
 Die App öffnet sich automatisch im Browser unter `http://localhost:8501`
@@ -286,23 +286,6 @@ Beiträge sind willkommen! Bitte:
 3. Committen Sie Ihre Änderungen (`git commit -m 'Add some AmazingFeature'`)
 4. Pushen Sie den Branch (`git push origin feature/AmazingFeature`)
 5. Öffnen Sie einen Pull Request
-
-### Entwicklungs-Setup
-
-```bash
-# Repository klonen
-git clone https://github.com/HeikoBre/screening-dashboard-sandbox.git
-cd screening-dashboard-sandbox
-
-# Entwicklungs-Dependencies installieren
-pip install -r requirements-dev.txt  # falls vorhanden
-
-# Tests ausführen (falls implementiert)
-pytest tests/
-
-# App im Debug-Modus starten
-streamlit run streamlit_app_improved.py --logger.level=debug
-```
 
 ## 📝 Changelog
 
