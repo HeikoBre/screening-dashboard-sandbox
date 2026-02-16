@@ -48,7 +48,7 @@ pip install -r requirements.txt
 ### 6. App starten
 
 ```bash
-streamlit run streamlit_app_improved.py
+streamlit run app.py
 ```
 
 Browser öffnet sich automatisch auf `http://localhost:8501`
@@ -93,7 +93,7 @@ pip install -r requirements.txt
 ### 5. App starten
 
 ```bash
-streamlit run streamlit_app_improved.py
+streamlit run app.py
 ```
 
 ## Für Linux (Ubuntu/Debian)
@@ -128,7 +128,7 @@ pip install -r requirements.txt
 ### 5. App starten
 
 ```bash
-streamlit run streamlit_app_improved.py
+streamlit run app.py
 ```
 
 ## Troubleshooting
@@ -166,7 +166,7 @@ pip install reportlab
 
 **Lösung: Anderen Port verwenden**
 ```bash
-streamlit run streamlit_app_improved.py --server.port 8502
+streamlit run app.py --server.port 8502
 ```
 
 ### Problem: "Module not found" Fehler
@@ -209,7 +209,7 @@ git pull
 pip install -r requirements.txt --upgrade
 
 # App starten
-streamlit run streamlit_app_improved.py
+streamlit run app.py
 ```
 
 ## Deinstallation
@@ -230,7 +230,7 @@ rmdir /s screening-dashboard-sandbox  # Windows
 ### Für lokale Netzwerk-Nutzung
 
 ```bash
-streamlit run streamlit_app_improved.py --server.address 0.0.0.0
+streamlit run app.py --server.address 0.0.0.0
 ```
 
 Dann können andere im gleichen Netzwerk über Ihre IP-Adresse zugreifen:
