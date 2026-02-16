@@ -25,6 +25,41 @@ h1 { font-size: 20px !important; }
 h3 { font-size: 16px !important; }
 h4 { font-size: 15px !important; }
 .caption { font-size: 11px !important; }
+
+/* Verbesserte Tab-Navigation */
+[data-baseweb="tab-list"] {
+    gap: 4px;
+    background-color: #f8f9fa;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+[data-baseweb="tab"] {
+    border-radius: 6px;
+    padding: 8px 16px;
+    background-color: white;
+    border: 1px solid #e0e0e0;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+[data-baseweb="tab"]:hover {
+    background-color: #f0f0f0;
+    border-color: #4CAF50;
+}
+
+[aria-selected="true"][data-baseweb="tab"] {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white !important;
+    border: 2px solid #3d8b40;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+    transform: translateY(-1px);
+}
+
+[aria-selected="true"][data-baseweb="tab"] p {
+    color: white !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -536,6 +571,31 @@ if st.session_state.summary_df is not None:
 # Tabs (Visualisierung mit erweiterter Anzeige)
 if st.session_state.df is not None:
     df = st.session_state.df
+    
+    # Fortschrittsanzeige mit visueller Gen-Übersicht
+    num_commented = len([c for c in st.session_state.user_comments.values() if c.strip()])
+    total_genes = len(st.session_state.genes)
+    progress_pct = num_commented / total_genes if total_genes > 0 else 0
+    
+    # Kompakte visuelle Übersicht
+    st.markdown(f"""
+    <div style='background-color: #f8f9fa; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;'>
+            <span style='font-weight: 600; color: #333;'>📊 Fortschritt</span>
+            <span style='color: #666; font-size: 13px;'>{num_commented} von {total_genes} Genen kommentiert ({progress_pct*100:.0f}%)</span>
+        </div>
+        <div style='background-color: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;'>
+            <div style='background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%); 
+                        height: 100%; 
+                        width: {progress_pct*100}%;
+                        transition: width 0.3s ease;'></div>
+        </div>
+        <div style='display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap;'>
+            {''.join([f"<span style='background-color: {'#4CAF50' if st.session_state.user_comments.get(gene, '').strip() else '#ddd'}; width: 8px; height: 8px; border-radius: 50%; display: inline-block;' title='{gene}'></span>" for gene in st.session_state.genes])}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     tabs = st.tabs(st.session_state.genes)
     
     for tab_idx, tab in enumerate(tabs):
@@ -543,12 +603,32 @@ if st.session_state.df is not None:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            col1, col2 = st.columns([1,3])
-            with col1: st.markdown(f"**_{gene}_**")
-            with col2: st.markdown(disease)
-            
-            # Vertikaler Strich unter Gen/Erkrankung mit reduziertem Abstand
-            st.markdown("<hr style='margin-top: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+            # Visueller Header mit Hervorhebung
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
+                        padding: 15px 20px; 
+                        border-radius: 10px; 
+                        border-left: 5px solid #4CAF50;
+                        margin-bottom: 20px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
+                <div style='display: flex; align-items: center; gap: 15px;'>
+                    <div style='background: #4CAF50; 
+                                color: white; 
+                                padding: 8px 15px; 
+                                border-radius: 6px; 
+                                font-weight: 700;
+                                font-size: 16px;'>
+                        {gene}
+                    </div>
+                    <div style='flex: 1; color: #666; font-size: 14px;'>
+                        {disease}
+                    </div>
+                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
+                        Gen {tab_idx + 1} von {len(st.session_state.genes)}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
