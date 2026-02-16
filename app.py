@@ -657,19 +657,19 @@ if st.session_state.df is not None:
     
     # Kompakte visuelle Übersicht
     st.markdown(f"""
-    <div style='background-color: #fafafa; padding: 8px 15px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e8e8e8;'>
-        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;'>
-            <span style='font-weight: 500; color: #555; font-size: 12px;'>Bewertungsfortschritt</span>
-            <span style='color: #777; font-size: 11px;'>{num_decided} von {total_genes} ({progress_pct*100:.0f}%)</span>
+    <div style='background-color: #fafafa; padding: 6px 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e8e8e8;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>
+            <span style='font-weight: 500; color: #555; font-size: 11px;'>Bewertungsfortschritt</span>
+            <span style='color: #777; font-size: 10px;'>{num_decided} von {total_genes} ({progress_pct*100:.0f}%)</span>
         </div>
-        <div style='background-color: #e8e8e8; height: 6px; border-radius: 3px; overflow: hidden;'>
+        <div style='background-color: #e8e8e8; height: 5px; border-radius: 3px; overflow: hidden;'>
             <div style='background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%); 
                         height: 100%; 
                         width: {progress_pct*100}%;
                         transition: width 0.3s ease;'></div>
         </div>
-        <div style='display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap;'>
-            {''.join([f"<span style='background-color: {'#4CAF50' if st.session_state.gene_decisions.get(gene, '') and st.session_state.gene_decisions.get(gene, '') != 'Noch nicht bewertet' else '#ddd'}; width: 6px; height: 6px; border-radius: 50%; display: inline-block;' title='{gene}: {st.session_state.gene_decisions.get(gene, 'Nicht bewertet')}'></span>" for gene in st.session_state.genes])}
+        <div style='display: flex; gap: 3px; margin-top: 6px; flex-wrap: wrap;'>
+            {''.join([f"<span style='background-color: {'#4CAF50' if st.session_state.gene_decisions.get(gene, '') and st.session_state.gene_decisions.get(gene, '') != 'Noch nicht bewertet' else '#ddd'}; width: 5px; height: 5px; border-radius: 50%; display: inline-block;' title='{gene}: {st.session_state.gene_decisions.get(gene, 'Nicht bewertet')}'></span>" for gene in st.session_state.genes])}
         </div>
     </div>
     """, unsafe_allow_html=True)
