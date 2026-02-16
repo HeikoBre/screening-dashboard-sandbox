@@ -612,7 +612,7 @@ if st.session_state.summary_df is not None:
             for gene, decision in decided_genes.items():
                 # Emoji extrahieren
                 emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
-                st.sidebar.caption(f"{emoji} *{gene}*")
+                st.caption(f"{emoji} *{gene}*")
     
     today = datetime.now().strftime("%Y%m%d")
     
@@ -684,25 +684,25 @@ if st.session_state.df is not None:
             # Visueller Header mit Hervorhebung
             st.markdown(f"""
             <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
-                        padding: 15px 20px; 
-                        border-radius: 10px; 
-                        border-left: 5px solid #4CAF50;
-                        margin-bottom: 20px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
-                <div style='display: flex; align-items: center; gap: 15px;'>
+                        padding: 10px 15px; 
+                        border-radius: 8px; 
+                        border-left: 4px solid #4CAF50;
+                        margin-bottom: 15px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
+                <div style='display: flex; align-items: center; gap: 12px;'>
                     <div style='background: #4CAF50; 
                                 color: white; 
-                                padding: 8px 15px; 
-                                border-radius: 6px; 
+                                padding: 6px 12px; 
+                                border-radius: 5px; 
                                 font-weight: 700;
-                                font-size: 16px;
+                                font-size: 14px;
                                 font-style: italic;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 14px;'>
+                    <div style='flex: 1; color: #666; font-size: 13px;'>
                         {disease}
                     </div>
-                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
+                    <div style='color: #999; font-size: 11px; font-weight: 500;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                 </div>
