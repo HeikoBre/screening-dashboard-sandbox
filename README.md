@@ -28,7 +28,7 @@ Diese App unterstützt Expertengruppen bei der systematischen Bewertung von Gene
 
 ### 1. CSV-Import
 - Automatisches Einlesen von LimeSurvey-Exporten
-- Erkennung von 25+ Gen-Erkrankungs-Kombinationen
+- Erkennung von Gen-Erkrankungs-Kombinationen
 - Robustes Parsing (unterstützt Non-Breaking Spaces und verschiedene Encodings)
 
 ### 2. Interaktive Visualisierung
@@ -253,7 +253,6 @@ Der CSV-Export zeigt explizit:
 - ✅ Chrome/Edge (empfohlen)
 - ✅ Firefox
 - ✅ Safari
-- ⚠️ Internet Explorer (nicht unterstützt)
 
 ### Bekannte Limitationen
 - CSV muss LimeSurvey-Standardformat entsprechen
@@ -307,7 +306,7 @@ streamlit run streamlit_app_improved.py --logger.level=debug
 
 ## 📝 Changelog
 
-### Version 1.0.0 (2024)
+### Version 1.0.0 (2026)
 - ✨ Initiales Release
 - 📊 CSV-Import von LimeSurvey
 - 🎨 Interaktive Visualisierung
@@ -318,19 +317,17 @@ streamlit run streamlit_app_improved.py --logger.level=debug
 
 ## 📄 Lizenz
 
-[Lizenz hier einfügen - z.B. MIT, GPL, oder proprietär]
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
 ## 👥 Autoren & Danksagungen
 
-- **Entwicklung:** [Ihre Namen/Institution]
-- **Konzept:** [Institution/Arbeitsgruppe]
-- **Feedback & Testing:** Expertengruppe gNBS
+- **Entwicklung & Konzept:** Heiko Brennenstuhl
 
 ## 📞 Kontakt
 
 Bei Fragen oder Problemen:
 - **GitHub Issues:** [Issue erstellen](https://github.com/HeikoBre/screening-dashboard-sandbox/issues)
-- **E-Mail:** [Ihre Kontakt-E-Mail]
+- **E-Mail:** heiko.brennenstuhl@med.uni-heidelberg.de
 
 ## 🔗 Weiterführende Links
 
@@ -342,4 +339,4 @@ Bei Fragen oder Problemen:
 
 **Hinweis:** Diese App wurde für wissenschaftliche Zwecke entwickelt. Für medizinische Entscheidungen konsultieren Sie bitte Fachpersonal.
 
-*Zuletzt aktualisiert: Februar 2024*
+*Zuletzt aktualisiert: Februar 2026*
