@@ -374,7 +374,7 @@ def generate_pdf():
         page_num = idx + 3  # Start bei Seite 3
         
         # Erstelle TOC Zeile
-        toc_text = f'<b>{gene}</b> ({disease})'
+        toc_text = f'<b><i>{gene}</i></b> ({disease})'
         
         # Tabelle für TOC-Zeile (Text links, Seitenzahl rechts)
         # Verwende Paragraph nur für den Gen-Namen, nicht für die Seitenzahl
@@ -399,7 +399,7 @@ def generate_pdf():
         disease = st.session_state.gene_dict.get(gene, '')
         
         # Gen-Header
-        story.append(Paragraph(f"<b>{gene}</b>", gene_style))
+        story.append(Paragraph(f"<b><i>{gene}</i></b>", gene_style))
         story.append(Paragraph(disease, disease_style))
         story.append(Spacer(1, 6))
         
@@ -487,9 +487,6 @@ def generate_pdf():
         ]))
         story.append(result_table)
         story.append(Spacer(1, 10))
-        
-        # Kommentare aus Umfrage direkt nach dem Ergebnis
-        story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
         
         # Kommentare aus Umfrage direkt nach dem Ergebnis
         story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
@@ -615,7 +612,7 @@ if st.session_state.summary_df is not None:
             for gene, decision in decided_genes.items():
                 # Emoji extrahieren
                 emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
-                st.sidebar.caption(f"{emoji} {gene}")
+                st.sidebar.caption(f"{emoji} *{gene}*")
     
     today = datetime.now().strftime("%Y%m%d")
     
@@ -677,7 +674,7 @@ if st.session_state.df is not None:
     </div>
     """, unsafe_allow_html=True)
     
-    tabs = st.tabs(st.session_state.genes)
+    tabs = st.tabs([f"*{gene}*" for gene in st.session_state.genes])
     
     for tab_idx, tab in enumerate(tabs):
         with tab:
@@ -698,7 +695,8 @@ if st.session_state.df is not None:
                                 padding: 8px 15px; 
                                 border-radius: 6px; 
                                 font-weight: 700;
-                                font-size: 16px;'>
+                                font-size: 16px;
+                                font-style: italic;'>
                         {gene}
                     </div>
                     <div style='flex: 1; color: #666; font-size: 14px;'>
