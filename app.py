@@ -60,6 +60,19 @@ h4 { font-size: 15px !important; }
 [aria-selected="true"][data-baseweb="tab"] p {
     color: white !important;
 }
+
+/* Normaler Cursor für Dropdowns */
+[data-baseweb="select"] {
+    cursor: pointer !important;
+}
+
+[data-baseweb="select"] input {
+    cursor: pointer !important;
+}
+
+div[data-baseweb="select"] > div {
+    cursor: pointer !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -586,6 +599,77 @@ def generate_pdf():
         # Seitenumbruch nach jedem Gen (außer beim letzten)
         if gene != st.session_state.genes[-1]:
             story.append(PageBreak())
+    
+    # === LETZTE SEITE: DOKUMENTATIONSINFORMATIONEN ===
+    story.append(PageBreak())
+    
+    # Titel
+    story.append(Spacer(1, 50))
+    info_title_style = ParagraphStyle(
+        'InfoTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#1f77b4'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("Dokumentationsinformationen", info_title_style))
+    
+    # Versions- und Repository-Informationen
+    info_style = ParagraphStyle(
+        'InfoText',
+        parent=styles['Normal'],
+        fontSize=10,
+        spaceAfter=12,
+        alignment=TA_LEFT
+    )
+    
+    story.append(Paragraph("<b>Generiert mit:</b>", info_style))
+    story.append(Paragraph("Expertenreview gNBS App", info_style))
+    story.append(Paragraph("Version: 1.0.0", info_style))
+    story.append(Spacer(1, 20))
+    
+    story.append(Paragraph("<b>Erstellungsdatum:</b>", info_style))
+    story.append(Paragraph(f"{datetime.now().strftime('%d.%m.%Y um %H:%M Uhr')}", info_style))
+    story.append(Spacer(1, 20))
+    
+    story.append(Paragraph("<b>Repository:</b>", info_style))
+    story.append(Paragraph("GitHub: [Repository-URL hier einfügen]", info_style))
+    story.append(Paragraph("Beispiel: https://github.com/your-org/gnbs-review-app", info_style))
+    story.append(Spacer(1, 20))
+    
+    story.append(Paragraph("<b>Beschreibung:</b>", info_style))
+    story.append(Paragraph(
+        "Diese Dokumentation wurde automatisch durch die Expertenreview gNBS App erstellt. "
+        "Die App ermöglicht die strukturierte Bewertung von Gen-Erkrankungs-Kombinationen für "
+        "das genomische Neugeborenenscreening basierend auf Expertenmeinungen.",
+        info_style
+    ))
+    story.append(Spacer(1, 30))
+    
+    # Technische Details in einer Box
+    tech_data = [[
+        "Technische Details:\n"
+        "• Python-basierte Streamlit-Anwendung\n"
+        "• PDF-Generierung mit ReportLab\n"
+        "• Datenvisualisierung mit Plotly\n"
+        "• CSV-Import/Export-Funktionalität"
+    ]]
+    tech_table = Table(tech_data, colWidths=[5*inch])
+    tech_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8f9fa')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#333333')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+        ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+        ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#e0e0e0')),
+    ]))
+    story.append(tech_table)
     
     # PDF erstellen mit custom canvas
     doc.build(story, canvasmaker=PageNumCanvas)
