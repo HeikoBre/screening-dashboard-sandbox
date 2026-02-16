@@ -1,4 +1,17 @@
+# Expertenreview gNBS App - Dependencies
+
+# Core Framework
 streamlit
+
+# Data Processing
 pandas
+numpy
+
+# Visualization
 plotly
+
+# PDF Generation
 reportlab
+
+# Additional utilities (falls benötigt)
+# openpyxl
