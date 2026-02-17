@@ -92,6 +92,19 @@ h4 { font-size: 15px !important; }
     border-radius: 8px;
 }
 
+/* Entferne den weißen Fade-out Effekt rechts */
+[data-baseweb="tab-list"]::after,
+[data-baseweb="tab-list"]::before {
+    display: none !important;
+    content: none !important;
+    background: none !important;
+}
+
+div[data-testid="stTabs"] > div:first-child::after {
+    display: none !important;
+    background: none !important;
+}
+
 [data-baseweb="tab"] {
     border-radius: 6px;
     padding: 6px 12px;
