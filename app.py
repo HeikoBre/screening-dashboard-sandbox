@@ -172,6 +172,20 @@ div[data-baseweb="select"] > div {
 </style>
 
 <script>
+// ===== TAB-NAVIGATION PER KLICK =====
+function navigateTab(direction) {
+    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    if (tabs.length === 0) return;
+    let activeIndex = -1;
+    tabs.forEach((tab, index) => {
+        if (tab.getAttribute('aria-selected') === 'true') activeIndex = index;
+    });
+    if (activeIndex === -1) return;
+    const nextIndex = (activeIndex + direction + tabs.length) % tabs.length;
+    tabs[nextIndex].click();
+    tabs[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
 // ===== TAB-HÖHE PER JAVASCRIPT ERZWINGEN =====
 function resizeTabs() {
     const tabs = document.querySelectorAll('[data-baseweb="tab"]');
@@ -1180,7 +1194,7 @@ if st.session_state.df is not None and st.session_state.review_started:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            # Visueller Header mit Hervorhebung
+            # Visueller Header mit Hervorhebung + JS-Navigation
             st.markdown(f"""
             <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
                         padding: 10px 15px; 
@@ -1189,21 +1203,36 @@ if st.session_state.df is not None and st.session_state.review_started:
                         margin-bottom: 15px;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
                 <div style='display: flex; align-items: center; gap: 12px;'>
+                    <button onclick="navigateTab(-1)" style='
+                        background: none; border: 1px solid #c8e6c9; border-radius: 5px;
+                        padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
+                        line-height: 1; flex-shrink: 0;
+                        transition: background 0.15s;'
+                        onmouseover="this.style.background='#e8f5e9'"
+                        onmouseout="this.style.background='none'">&#9664;</button>
                     <div style='background: #4CAF50; 
                                 color: white; 
                                 padding: 6px 12px; 
                                 border-radius: 5px; 
                                 font-weight: 700;
                                 font-size: 16px;
-                                font-style: italic;'>
+                                font-style: italic;
+                                flex-shrink: 0;'>
                         {gene}
                     </div>
                     <div style='flex: 1; color: #666; font-size: 16px;'>
                         {disease[:1].upper() + disease[1:] if disease else ''}
                     </div>
-                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
+                    <div style='color: #999; font-size: 12px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
+                    <button onclick="navigateTab(1)" style='
+                        background: none; border: 1px solid #c8e6c9; border-radius: 5px;
+                        padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
+                        line-height: 1; flex-shrink: 0;
+                        transition: background 0.15s;'
+                        onmouseover="this.style.background='#e8f5e9'"
+                        onmouseout="this.style.background='none'">&#9654;</button>
                 </div>
             </div>
             """, unsafe_allow_html=True)
