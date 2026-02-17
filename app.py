@@ -134,7 +134,20 @@ div[data-baseweb="select"] > div {
 </style>
 
 <script>
-// Keyboard navigation for tabs
+// ===== KEEP-ALIVE =====
+// Verhindert dass Streamlit einschläft durch regelmäßige Aktivität
+(function keepAlive() {
+    setInterval(function() {
+        // Sendet ein harmloses Maus-Bewegungs-Event alle 5 Minuten
+        document.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+    }, 5 * 60 * 1000);  // Alle 5 Minuten
+})();
+
+// ===== KEYBOARD NAVIGATION =====
 document.addEventListener('keydown', function(e) {
     // Ignore if user is typing in input field
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -294,7 +307,7 @@ if st.session_state.df is None:
                 
                 summary_data.append({
                     'Gen': gene,
-                    'Erkrankung': st.session_state.gene_dict[gene],
+                    'Erkrankung': st.session_state.gene_dict[gene][:1].upper() + st.session_state.gene_dict[gene][1:] if st.session_state.gene_dict[gene] else '',
                     'National_Ja_pct': round(nat_ja, 1),
                     'National_n': n_nat,
                     'Studie_Ja_pct': round(stud_ja, 1),
@@ -597,7 +610,7 @@ def generate_pdf():
         page_num = idx + 3  # Start bei Seite 3
         
         # Erstelle TOC Zeile
-        toc_text = f'<b><i>{gene}</i></b> ({disease})'
+        toc_text = f'<b><i>{gene}</i></b> ({disease[:1].upper() + disease[1:] if disease else ""})'
         
         # Tabelle für TOC-Zeile (Text links, Seitenzahl rechts)
         # Verwende Paragraph nur für den Gen-Namen, nicht für die Seitenzahl
@@ -623,7 +636,7 @@ def generate_pdf():
         
         # Gen-Header
         story.append(Paragraph(f"<b><i>{gene}</i></b>", gene_style))
-        story.append(Paragraph(disease, disease_style))
+        story.append(Paragraph(disease[:1].upper() + disease[1:] if disease else '', disease_style))
         story.append(Spacer(1, 6))
         
         # Daten sammeln
@@ -973,7 +986,7 @@ if st.session_state.df is not None:
                         {gene}
                     </div>
                     <div style='flex: 1; color: #666; font-size: 16px;'>
-                        {disease}
+                        {disease[:1].upper() + disease[1:] if disease else ''}
                     </div>
                     <div style='color: #999; font-size: 12px; font-weight: 500;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
