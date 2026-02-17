@@ -1194,64 +1194,58 @@ if st.session_state.df is not None and st.session_state.review_started:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            # Visueller Header mit Hervorhebung + JS-Navigation
-            st.markdown(f"""
+            # Visueller Header mit Hervorhebung + JS-Navigation via components
+            gene_escaped = gene.replace("'", "\\'")
+            disease_display = disease[:1].upper() + disease[1:] if disease else ''
+            disease_escaped = disease_display.replace("'", "\\'")
+            
+            nav_html = f"""
             <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
                         padding: 10px 15px; 
                         border-radius: 8px; 
                         border-left: 4px solid #4CAF50;
-                        margin-bottom: 15px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
+                        margin-bottom: 0px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                        font-family: sans-serif;'>
                 <div style='display: flex; align-items: center; gap: 12px;'>
-                    <button onclick="(function(){{
-                        var tabs = window.parent.document.querySelectorAll('[data-baseweb=\\'tab\\']');
-                        if(!tabs.length) return;
-                        var active = -1;
-                        tabs.forEach(function(t,i){{ if(t.getAttribute('aria-selected')==='true') active=i; }});
-                        if(active===-1) return;
-                        var prev = (active - 1 + tabs.length) % tabs.length;
-                        tabs[prev].click();
-                        tabs[prev].scrollIntoView({{behavior:'smooth',block:'nearest',inline:'center'}});
-                    }})()" style='
+                    <button id="btn-prev" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
                         padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
-                        line-height: 1; flex-shrink: 0; transition: background 0.15s;'
-                        onmouseover="this.style.background='#e8f5e9'"
-                        onmouseout="this.style.background='none'">&#9664;</button>
-                    <div style='background: #4CAF50; 
-                                color: white; 
-                                padding: 6px 12px; 
-                                border-radius: 5px; 
-                                font-weight: 700;
-                                font-size: 16px;
-                                font-style: italic;
-                                flex-shrink: 0;'>
+                        line-height: 1; flex-shrink: 0;'>&#9664;</button>
+                    <div style='background: #4CAF50; color: white; padding: 6px 12px; 
+                                border-radius: 5px; font-weight: 700; font-size: 16px;
+                                font-style: italic; flex-shrink: 0;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 16px;'>
-                        {disease[:1].upper() + disease[1:] if disease else ''}
-                    </div>
+                    <div style='flex: 1; color: #666; font-size: 16px;'>{disease_display}</div>
                     <div style='color: #999; font-size: 12px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
-                    <button onclick="(function(){{
-                        var tabs = window.parent.document.querySelectorAll('[data-baseweb=\\'tab\\']');
-                        if(!tabs.length) return;
-                        var active = -1;
-                        tabs.forEach(function(t,i){{ if(t.getAttribute('aria-selected')==='true') active=i; }});
-                        if(active===-1) return;
-                        var next = (active + 1) % tabs.length;
-                        tabs[next].click();
-                        tabs[next].scrollIntoView({{behavior:'smooth',block:'nearest',inline:'center'}});
-                    }})()" style='
+                    <button id="btn-next" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
                         padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
-                        line-height: 1; flex-shrink: 0; transition: background 0.15s;'
-                        onmouseover="this.style.background='#e8f5e9'"
-                        onmouseout="this.style.background='none'">&#9654;</button>
+                        line-height: 1; flex-shrink: 0;'>&#9654;</button>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            <script>
+            function navTab(dir) {{
+                var doc = window.parent.document;
+                var tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+                if (!tabs.length) return;
+                var active = -1;
+                tabs.forEach(function(t, i) {{
+                    if (t.getAttribute('aria-selected') === 'true') active = i;
+                }});
+                if (active === -1) return;
+                var next = (active + dir + tabs.length) % tabs.length;
+                tabs[next].click();
+                tabs[next].scrollIntoView({{behavior: 'smooth', block: 'nearest', inline: 'center'}});
+            }}
+            document.getElementById('btn-prev').addEventListener('click', function() {{ navTab(-1); }});
+            document.getElementById('btn-next').addEventListener('click', function() {{ navTab(1); }});
+            </script>
+            """
+            st.components.v1.html(nav_html, height=60)
             
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
