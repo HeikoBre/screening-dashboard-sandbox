@@ -1216,7 +1216,11 @@ if st.session_state.df is not None and st.session_state.review_started:
                                 font-style: italic; flex-shrink: 0;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; font-weight: 600;'>{disease_display}</div>
+                    <a href='https://omim.org/search?index=entry&search={gene}&filter=gene' 
+                       target='_blank' 
+                       style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; text-decoration: none;'
+                       onmouseover="this.style.textDecoration='underline'"
+                       onmouseout="this.style.textDecoration='none'">{disease_display}</a>
                     <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
