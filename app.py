@@ -968,14 +968,14 @@ if st.session_state.df is not None:
                                 padding: 6px 12px; 
                                 border-radius: 5px; 
                                 font-weight: 700;
-                                font-size: 14px;
+                                font-size: 16px;
                                 font-style: italic;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 13px;'>
+                    <div style='flex: 1; color: #666; font-size: 16px;'>
                         {disease}
                     </div>
-                    <div style='color: #999; font-size: 11px; font-weight: 500;'>
+                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                 </div>
