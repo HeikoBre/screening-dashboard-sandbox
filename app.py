@@ -1203,11 +1203,19 @@ if st.session_state.df is not None and st.session_state.review_started:
                         margin-bottom: 15px;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
                 <div style='display: flex; align-items: center; gap: 12px;'>
-                    <button onclick="navigateTab(-1)" style='
+                    <button onclick="(function(){{
+                        var tabs = window.parent.document.querySelectorAll('[data-baseweb=\\'tab\\']');
+                        if(!tabs.length) return;
+                        var active = -1;
+                        tabs.forEach(function(t,i){{ if(t.getAttribute('aria-selected')==='true') active=i; }});
+                        if(active===-1) return;
+                        var prev = (active - 1 + tabs.length) % tabs.length;
+                        tabs[prev].click();
+                        tabs[prev].scrollIntoView({{behavior:'smooth',block:'nearest',inline:'center'}});
+                    }})()" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
                         padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
-                        line-height: 1; flex-shrink: 0;
-                        transition: background 0.15s;'
+                        line-height: 1; flex-shrink: 0; transition: background 0.15s;'
                         onmouseover="this.style.background='#e8f5e9'"
                         onmouseout="this.style.background='none'">&#9664;</button>
                     <div style='background: #4CAF50; 
@@ -1226,11 +1234,19 @@ if st.session_state.df is not None and st.session_state.review_started:
                     <div style='color: #999; font-size: 12px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
-                    <button onclick="navigateTab(1)" style='
+                    <button onclick="(function(){{
+                        var tabs = window.parent.document.querySelectorAll('[data-baseweb=\\'tab\\']');
+                        if(!tabs.length) return;
+                        var active = -1;
+                        tabs.forEach(function(t,i){{ if(t.getAttribute('aria-selected')==='true') active=i; }});
+                        if(active===-1) return;
+                        var next = (active + 1) % tabs.length;
+                        tabs[next].click();
+                        tabs[next].scrollIntoView({{behavior:'smooth',block:'nearest',inline:'center'}});
+                    }})()" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
                         padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
-                        line-height: 1; flex-shrink: 0;
-                        transition: background 0.15s;'
+                        line-height: 1; flex-shrink: 0; transition: background 0.15s;'
                         onmouseover="this.style.background='#e8f5e9'"
                         onmouseout="this.style.background='none'">&#9654;</button>
                 </div>
