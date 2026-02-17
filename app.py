@@ -1388,9 +1388,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                 )
                 
                 # Speichere Entscheidung automatisch
-                if decision != current_decision:
-                    st.session_state.gene_decisions[gene] = decision
-                    st.rerun()
+                st.session_state.gene_decisions[gene] = decision
                 
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 
@@ -1412,11 +1410,9 @@ if st.session_state.df is not None and st.session_state.review_started:
                 with col_save:
                     if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}', use_container_width=True):
                         st.session_state.user_comments[gene] = user_comment
-                        st.rerun()
                 with col_clear:
                     if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}', use_container_width=True):
                         st.session_state.user_comments[gene] = ''
-                        st.rerun()
                 
                 if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
                     st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
