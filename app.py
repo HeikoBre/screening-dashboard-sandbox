@@ -1226,9 +1226,11 @@ if st.session_state.df is not None and st.session_state.review_started:
                     weiss_nicht_count = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
                     ja_pct = ja_count / n_total * 100 if n_total > 0 else 0
                     
-                    st.caption(f'**Gesamt:** n={n_total}')
-                    st.caption(f'Ja: {ja_count} | Nein: {nein_count} | NA: {weiss_nicht_count}')
-                    st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}')
+                    st.markdown(f"""<div style='font-size:11px; color:#555; line-height:1.4; margin-top:2px;'>
+                        <b>Gesamt:</b> n={n_total}<br>
+                        Ja: {ja_count} | Nein: {nein_count} | NA: {weiss_nicht_count}<br>
+                        Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}
+                    </div>""", unsafe_allow_html=True)
 
                 with right_col:
                     st.markdown("<h4 style='margin-top: 0px; margin-bottom: 10px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
@@ -1264,9 +1266,11 @@ if st.session_state.df is not None and st.session_state.review_started:
                     weiss_nicht_count_stud = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
                     ja_pct_stud = ja_count_stud / n_total_stud * 100 if n_total_stud > 0 else 0
                     
-                    st.caption(f'**Gesamt:** n={n_total_stud}')
-                    st.caption(f'Ja: {ja_count_stud} | Nein: {nein_count_stud} | NA: {weiss_nicht_count_stud}')
-                    st.caption(f'Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}')
+                    st.markdown(f"""<div style='font-size:11px; color:#555; line-height:1.4; margin-top:2px;'>
+                        <b>Gesamt:</b> n={n_total_stud}<br>
+                        Ja: {ja_count_stud} | Nein: {nein_count_stud} | NA: {weiss_nicht_count_stud}<br>
+                        Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}
+                    </div>""", unsafe_allow_html=True)
 
                 # Legende direkt unter den Abbildungen
                 st.markdown("""
