@@ -822,26 +822,40 @@ def generate_pdf():
         # Kommentare aus Umfrage direkt nach dem Ergebnis
         story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
         
-        # Kommentare aus Umfrage - National
         nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-        if nat_comments:
-            story.append(Paragraph("National:", comment_style))
-            for idx, comment in enumerate(nat_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                comment_para = ParagraphStyle('CommentIndented', parent=comment_style, leftIndent=30, fontSize=8)
-                story.append(Paragraph(f"• {safe_comment}", comment_para))
-            story.append(Spacer(1, 6))
-        
-        # Kommentare aus Umfrage - Studie
         stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
-        if stud_comments:
-            story.append(Paragraph("Studie:", comment_style))
-            for idx, comment in enumerate(stud_comments, 1):
-                safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                comment_para = ParagraphStyle('CommentIndented2', parent=comment_style, leftIndent=30, fontSize=8)
-                story.append(Paragraph(f"• {safe_comment}", comment_para))
+
+        def make_comment_table(label, comment_list, bg_color, label_color):
+            """Hilfsfunktion: Erstellt eine farbig hinterlegte Kommentar-Box"""
+            rows = [[Paragraph(f"<b>{label}</b>", ParagraphStyle('CLabel', fontSize=8, textColor=label_color, fontName='Helvetica-Bold'))]]
+            for c in comment_list:
+                safe = c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                rows.append([Paragraph(f"• {safe}", ParagraphStyle('CText', fontSize=8, leading=11, leftIndent=8))])
+            t = Table(rows, colWidths=[5.3*inch])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+                ('TOPPADDING',    (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING',   (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
+                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+            ]))
+            return t
+
+        if nat_comments:
+            story.append(make_comment_table(
+                "National", nat_comments,
+                colors.HexColor('#EAF4EA'), colors.HexColor('#2E7D32')
+            ))
             story.append(Spacer(1, 6))
-        
+
+        if stud_comments:
+            story.append(make_comment_table(
+                "Studie", stud_comments,
+                colors.HexColor('#FFF8E1'), colors.HexColor('#F57F17')
+            ))
+            story.append(Spacer(1, 6))
+
         if not nat_comments and not stud_comments:
             story.append(Paragraph("Keine Kommentare", comment_style))
             story.append(Spacer(1, 6))
@@ -856,10 +870,8 @@ def generate_pdf():
         story.append(Paragraph("<b>Entscheidung der Expertengruppe:</b>", section_style))
         
         if decision and decision != 'Noch nicht bewertet':
-            # Entferne Emoji für PDF
             decision_text = decision.replace('🟢 ', '').replace('🟡 ', '').replace('🔴 ', '').replace('⚪ ', '')
             
-            # Farbe basierend auf Empfehlung
             if 'nationales gNBS' in decision:
                 box_color = colors.HexColor('#4CAF50')
             elif 'wissenschaftliche' in decision:
@@ -883,7 +895,6 @@ def generate_pdf():
             ]))
             story.append(decision_table)
         else:
-            # Keine Entscheidung getroffen
             no_decision_data = [["Noch nicht bewertet"]]
             no_decision_table = Table(no_decision_data, colWidths=[5.5*inch])
             no_decision_table.setStyle(TableStyle([
@@ -900,14 +911,25 @@ def generate_pdf():
         
         story.append(Spacer(1, 10))
         
-        # Zusätzliche Notizen der Besprechung direkt nach der Entscheidung
+        # Zusätzliche Notizen — ebenfalls farbig hinterlegt
         reviewer_comment = st.session_state.user_comments.get(gene, '')
         if reviewer_comment:
             story.append(Paragraph("<b>Zusätzliche Notizen:</b>", section_style))
             safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            for para in safe_reviewer_comment.split('\n'):
-                if para.strip():
-                    story.append(Paragraph(para, comment_style))
+            note_rows = [[Paragraph(
+                safe_reviewer_comment.replace('\n', '<br/>'),
+                ParagraphStyle('NoteText', fontSize=8, leading=12, leftIndent=4)
+            )]]
+            note_table = Table(note_rows, colWidths=[5.3*inch])
+            note_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F0F4FF')),
+                ('TOPPADDING',    (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING',   (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
+                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+            ]))
+            story.append(note_table)
             story.append(Spacer(1, 10))
         
         # Horizontaler Trennstrich am Ende
@@ -1049,6 +1071,7 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     preview_df['💬'] = preview_df['Gen'].apply(
         lambda gene: '✓' if st.session_state.user_comments.get(gene, '').strip() else ''
     )
+    preview_df.index = range(1, len(preview_df) + 1)
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
