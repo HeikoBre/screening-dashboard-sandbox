@@ -124,11 +124,19 @@ h4 { font-size: 15px !important; }
 
 [data-baseweb="tab"] {
     border-radius: 6px;
-    padding: 3px 8px;
+    padding: 1px 6px !important;
+    min-height: 0 !important;
+    height: auto !important;
     background-color: white;
     border: 1px solid #e0e0e0;
     font-size: 11px;
     transition: all 0.2s ease;
+}
+
+[data-baseweb="tab"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1.4 !important;
 }
 
 [data-baseweb="tab"]:hover {
@@ -164,6 +172,32 @@ div[data-baseweb="select"] > div {
 </style>
 
 <script>
+// ===== TAB-HÖHE PER JAVASCRIPT ERZWINGEN =====
+function resizeTabs() {
+    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    tabs.forEach(tab => {
+        tab.style.setProperty('padding', '1px 6px', 'important');
+        tab.style.setProperty('min-height', '0', 'important');
+        tab.style.setProperty('height', 'auto', 'important');
+        // Innere divs auch verkleinern
+        tab.querySelectorAll('div, span, p').forEach(el => {
+            el.style.setProperty('padding-top', '0', 'important');
+            el.style.setProperty('padding-bottom', '0', 'important');
+            el.style.setProperty('line-height', '1.4', 'important');
+        });
+    });
+    // Tab-Liste ebenfalls
+    const tabLists = document.querySelectorAll('[data-baseweb="tab-list"]');
+    tabLists.forEach(list => {
+        list.style.setProperty('padding', '4px 6px', 'important');
+    });
+}
+
+// Initial + nach jeder Streamlit-Aktualisierung ausführen
+setTimeout(resizeTabs, 500);
+setTimeout(resizeTabs, 1500);
+const observer = new MutationObserver(() => setTimeout(resizeTabs, 100));
+observer.observe(document.body, { childList: true, subtree: true });
 // ===== KEEP-ALIVE =====
 // Verhindert dass Streamlit einschläft durch regelmäßige Aktivität
 (function keepAlive() {
