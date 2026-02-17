@@ -260,6 +260,40 @@ if 'review_started' not in st.session_state: st.session_state.review_started = F
 # Upload
 if st.session_state.df is None:
     uploaded_file = st.file_uploader('CSV hochladen', type='csv')
+    
+    # Dummy-Daten Bereich
+    st.markdown("---")
+    st.markdown("#### 🧪 Testmodus")
+    st.markdown("<small style='color:#888;'>Zum Testen der App können Dummy-Datensätze aus dem Repository geladen werden:</small>", unsafe_allow_html=True)
+    
+    DUMMY_BASE = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs"
+    
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        if st.button("📂 8 Antworten (ohne Kommentare)", use_container_width=True):
+            import urllib.request
+            url = f"{DUMMY_BASE}/dummy_survey_data.csv"
+            with st.spinner("Lade Dummy-Daten..."):
+                try:
+                    response = urllib.request.urlopen(url)
+                    uploaded_file = io.BytesIO(response.read())
+                    uploaded_file.name = "dummy_survey_data.csv"
+                except Exception as e:
+                    st.error(f"Konnte Dummy-Daten nicht laden: {e}")
+                    uploaded_file = None
+    with col_d2:
+        if st.button("📂 20 Antworten (mit Kommentaren)", use_container_width=True):
+            import urllib.request
+            url = f"{DUMMY_BASE}/dummy_survey_20.csv"
+            with st.spinner("Lade Dummy-Daten..."):
+                try:
+                    response = urllib.request.urlopen(url)
+                    uploaded_file = io.BytesIO(response.read())
+                    uploaded_file.name = "dummy_survey_20.csv"
+                except Exception as e:
+                    st.error(f"Konnte Dummy-Daten nicht laden: {e}")
+                    uploaded_file = None
+    
     if uploaded_file is not None:
         with st.spinner('Lade & analysiere...'):
             # Versuche verschiedene Encoding-Optionen und lade ALLE Spalten
