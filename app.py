@@ -1201,29 +1201,28 @@ if st.session_state.df is not None and st.session_state.review_started:
             
             nav_html = f"""
             <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
-                        padding: 10px 15px; 
+                        padding: 8px 12px; 
                         border-radius: 8px; 
                         border-left: 4px solid #4CAF50;
-                        margin-bottom: 0px;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                        font-family: sans-serif;'>
-                <div style='display: flex; align-items: center; gap: 12px;'>
+                        font-family: "Source Sans Pro", "Segoe UI", Arial, sans-serif;'>
+                <div style='display: flex; align-items: center; gap: 10px; white-space: nowrap;'>
                     <button id="btn-prev" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
-                        padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
+                        padding: 3px 9px; cursor: pointer; color: #4CAF50; font-size: 12px;
                         line-height: 1; flex-shrink: 0;'>&#9664;</button>
-                    <div style='background: #4CAF50; color: white; padding: 6px 12px; 
-                                border-radius: 5px; font-weight: 700; font-size: 16px;
+                    <div style='background: #4CAF50; color: white; padding: 4px 10px; 
+                                border-radius: 5px; font-weight: 700; font-size: 13px;
                                 font-style: italic; flex-shrink: 0;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 16px;'>{disease_display}</div>
-                    <div style='color: #999; font-size: 12px; font-weight: 500; flex-shrink: 0;'>
+                    <div style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis;'>{disease_display}</div>
+                    <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                     <button id="btn-next" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
-                        padding: 4px 10px; cursor: pointer; color: #4CAF50; font-size: 14px;
+                        padding: 3px 9px; cursor: pointer; color: #4CAF50; font-size: 12px;
                         line-height: 1; flex-shrink: 0;'>&#9654;</button>
                 </div>
             </div>
