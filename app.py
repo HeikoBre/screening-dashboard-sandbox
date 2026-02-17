@@ -193,7 +193,8 @@ if 'gene_dict' not in st.session_state: st.session_state.gene_dict = {}
 if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
-if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}  # Neu: Dropdown-Entscheidungen
+if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
+if 'review_started' not in st.session_state: st.session_state.review_started = False
 
 # Upload
 if st.session_state.df is None:
@@ -319,13 +320,103 @@ if st.session_state.df is None:
             
             st.session_state.summary_df = pd.DataFrame(summary_data)
             
-        st.success(f'✅ {len(st.session_state.genes)} Gene | {st.session_state.total_responses} Antworten')
-        st.rerun()
+        # === ZUSAMMENFASSUNGS-ANSICHT ===
+        sdf = st.session_state.summary_df
+        n_genes = len(st.session_state.genes)
+        n_responses = st.session_state.total_responses
+        
+        # Metriken berechnen
+        n_national_80 = (sdf['National_Ja_pct'] >= 80).sum()
+        n_studie_80 = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] >= 80)).sum()
+        n_keine = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] < 80)).sum()
+        n_kommentare_nat = (sdf['Kommentare_National'] != '').sum()
+        n_kommentare_stud = (sdf['Kommentare_Studie'] != '').sum()
+        
+        st.markdown("## 📊 Übersicht der eingelesenen Daten")
+        st.markdown(f"*Datei erfolgreich eingelesen – bitte prüfen Sie die Zusammenfassung vor der Bewertung.*")
+        st.markdown("---")
+        
+        # Zeile 1: Kern-Metriken
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(f"""
+            <div style='background:#f0f7ff; padding:18px; border-radius:10px; border-left:4px solid #1f77b4; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#1f77b4;'>{n_genes}</div>
+                <div style='font-size:13px; color:#555; margin-top:4px;'>Gen-Erkrankungs-Kombinationen</div>
+            </div>""", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"""
+            <div style='background:#f0f7ff; padding:18px; border-radius:10px; border-left:4px solid #1f77b4; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#1f77b4;'>{n_responses}</div>
+                <div style='font-size:13px; color:#555; margin-top:4px;'>Ausgefüllte Fragebögen</div>
+            </div>""", unsafe_allow_html=True)
+        with c3:
+            avg_response_rate = round((sdf['National_n'].mean() / n_responses * 100) if n_responses > 0 else 0, 1)
+            st.markdown(f"""
+            <div style='background:#f0f7ff; padding:18px; border-radius:10px; border-left:4px solid #1f77b4; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#1f77b4;'>{avg_response_rate}%</div>
+                <div style='font-size:13px; color:#555; margin-top:4px;'>Ø Antwortrate pro Gen</div>
+            </div>""", unsafe_allow_html=True)
+        
+        st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
+        
+        # Zeile 2: Umfrage-Ergebnisse (Ampel)
+        st.markdown("#### Vorläufige Bewertung basierend auf ≥80% Cut-off")
+        c4, c5, c6, c7 = st.columns(4)
+        with c4:
+            st.markdown(f"""
+            <div style='background:#e8f5e9; padding:18px; border-radius:10px; border-left:4px solid #4CAF50; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#2E7D32;'>{n_national_80}</div>
+                <div style='font-size:12px; color:#2E7D32; margin-top:4px;'>🟢 Nationales gNBS</div>
+                <div style='font-size:11px; color:#555;'>(≥80% national)</div>
+            </div>""", unsafe_allow_html=True)
+        with c5:
+            st.markdown(f"""
+            <div style='background:#fff8e1; padding:18px; border-radius:10px; border-left:4px solid #FFC107; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#F57F17;'>{n_studie_80}</div>
+                <div style='font-size:12px; color:#F57F17; margin-top:4px;'>🟡 Wissenschaftliche Studie</div>
+                <div style='font-size:11px; color:#555;'>(≥80% Studie)</div>
+            </div>""", unsafe_allow_html=True)
+        with c6:
+            st.markdown(f"""
+            <div style='background:#ffebee; padding:18px; border-radius:10px; border-left:4px solid #F44336; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#C62828;'>{n_keine}</div>
+                <div style='font-size:12px; color:#C62828; margin-top:4px;'>🔴 Keine Berücksichtigung</div>
+                <div style='font-size:11px; color:#555;'>(<80% in beiden)</div>
+            </div>""", unsafe_allow_html=True)
+        with c7:
+            n_kommentare_gesamt = n_kommentare_nat + n_kommentare_stud
+            st.markdown(f"""
+            <div style='background:#fafafa; padding:18px; border-radius:10px; border-left:4px solid #9E9E9E; text-align:center;'>
+                <div style='font-size:36px; font-weight:700; color:#555;'>{n_kommentare_gesamt}</div>
+                <div style='font-size:12px; color:#555; margin-top:4px;'>💬 Kommentare</div>
+                <div style='font-size:11px; color:#555;'>({n_kommentare_nat} nat. / {n_kommentare_stud} Studie)</div>
+            </div>""", unsafe_allow_html=True)
+        
+        st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
+        
+        # Vorschau-Tabelle der Gene
+        st.markdown("#### Erkannte Gene")
+        preview = sdf[['Gen', 'Erkrankung', 'National_Ja_pct', 'Studie_Ja_pct']].copy()
+        preview.columns = ['Gen', 'Erkrankung', 'National (% Ja)', 'Studie (% Ja)']
+        preview['Vorläufig'] = preview.apply(
+            lambda r: '🟢 National' if r['National (% Ja)'] >= 80 
+            else ('🟡 Studie' if r['Studie (% Ja)'] >= 80 else '🔴 Keine'), axis=1
+        )
+        st.dataframe(preview, use_container_width=True, height=min(400, 36 + n_genes * 35))
+        
+        st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+        
+        # Start-Button
+        col_l, col_btn, col_r = st.columns([2, 2, 2])
+        with col_btn:
+            if st.button('▶ Bewertung starten', type='primary', use_container_width=True):
+                st.session_state.review_started = True
+                st.rerun()
 else:
     if st.sidebar.button('Neue CSV 🗑️'): 
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
-
 # Funktion zum Generieren der CSV
 def generate_csv():
     """
@@ -899,7 +990,7 @@ def generate_pdf():
     return pdf_buffer.getvalue()
 
 # Sidebar Export
-if st.session_state.summary_df is not None:
+if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.markdown("### 📥 Export")
     
     # Bewertungsfortschritt in Sidebar
@@ -957,7 +1048,7 @@ if st.session_state.summary_df is not None:
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
-if st.session_state.df is not None:
+if st.session_state.df is not None and st.session_state.review_started:
     df = st.session_state.df
     
     tabs = st.tabs([f"*{gene}*" for gene in st.session_state.genes])
@@ -981,14 +1072,14 @@ if st.session_state.df is not None:
                                 padding: 6px 12px; 
                                 border-radius: 5px; 
                                 font-weight: 700;
-                                font-size: 16px;
+                                font-size: 14px;
                                 font-style: italic;'>
                         {gene}
                     </div>
-                    <div style='flex: 1; color: #666; font-size: 16px;'>
+                    <div style='flex: 1; color: #666; font-size: 13px;'>
                         {disease[:1].upper() + disease[1:] if disease else ''}
                     </div>
-                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
+                    <div style='color: #999; font-size: 11px; font-weight: 500;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                 </div>
