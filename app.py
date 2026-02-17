@@ -191,17 +191,8 @@ function resizeTabs() {
     });
 }
 
-// Aktiviere den richtigen Tab nach Rerun
-function activateTab(idx) {
-    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
-    if (tabs.length > idx) {
-        tabs[idx].click();
-    }
-}
-
 setTimeout(resizeTabs, 500);
 setTimeout(resizeTabs, 1500);
-setTimeout(() => activateTab(""" + str(st.session_state.get('active_gene_idx', 0)) + """), 300);
 const observer = new MutationObserver(() => setTimeout(resizeTabs, 100));
 observer.observe(document.body, { childList: true, subtree: true });
 // ===== KEEP-ALIVE =====
@@ -265,7 +256,6 @@ if 'total_responses' not in st.session_state: st.session_state.total_responses =
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
 if 'review_started' not in st.session_state: st.session_state.review_started = False
-if 'active_gene_idx' not in st.session_state: st.session_state.active_gene_idx = 0
 
 # Upload
 if st.session_state.df is None:
@@ -1156,45 +1146,33 @@ if st.session_state.df is not None and st.session_state.review_started:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            # Navigations-Buttons + Gen-Header
-            btn_prev, header_col, btn_next = st.columns([1, 10, 1])
-            with btn_prev:
-                st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
-                if st.button("◀", key=f"prev_{tab_idx}", use_container_width=True):
-                    st.session_state.active_gene_idx = (tab_idx - 1) % len(st.session_state.genes)
-                    st.rerun()
-            with header_col:
-                st.markdown(f"""
-                <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
-                            padding: 10px 15px; 
-                            border-radius: 8px; 
-                            border-left: 4px solid #4CAF50;
-                            margin-bottom: 15px;
-                            box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
-                    <div style='display: flex; align-items: center; gap: 12px;'>
-                        <div style='background: #4CAF50; 
-                                    color: white; 
-                                    padding: 6px 12px; 
-                                    border-radius: 5px; 
-                                    font-weight: 700;
-                                    font-size: 16px;
-                                    font-style: italic;'>
-                            {gene}
-                        </div>
-                        <div style='flex: 1; color: #666; font-size: 16px;'>
-                            {disease[:1].upper() + disease[1:] if disease else ''}
-                        </div>
-                        <div style='color: #999; font-size: 12px; font-weight: 500;'>
-                            Gen {tab_idx + 1} von {len(st.session_state.genes)}
-                        </div>
+            # Visueller Header mit Hervorhebung
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
+                        padding: 10px 15px; 
+                        border-radius: 8px; 
+                        border-left: 4px solid #4CAF50;
+                        margin-bottom: 15px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
+                <div style='display: flex; align-items: center; gap: 12px;'>
+                    <div style='background: #4CAF50; 
+                                color: white; 
+                                padding: 6px 12px; 
+                                border-radius: 5px; 
+                                font-weight: 700;
+                                font-size: 16px;
+                                font-style: italic;'>
+                        {gene}
+                    </div>
+                    <div style='flex: 1; color: #666; font-size: 16px;'>
+                        {disease[:1].upper() + disease[1:] if disease else ''}
+                    </div>
+                    <div style='color: #999; font-size: 12px; font-weight: 500;'>
+                        Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-            with btn_next:
-                st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
-                if st.button("▶", key=f"next_{tab_idx}", use_container_width=True):
-                    st.session_state.active_gene_idx = (tab_idx + 1) % len(st.session_state.genes)
-                    st.rerun()
+            </div>
+            """, unsafe_allow_html=True)
             
             nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
             nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
