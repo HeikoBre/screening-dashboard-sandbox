@@ -92,48 +92,34 @@ h4 { font-size: 15px !important; }
     border-radius: 8px;
 }
 
-/* Entferne den weißen Fade-out Effekt rechts – alle bekannten Selektoren */
+/* Fade-out Effekt entfernen - alle möglichen Pseudo-Elemente überschreiben */
+[data-baseweb="tab-list"] *::after,
+[data-baseweb="tab-list"] *::before,
 [data-baseweb="tab-list"]::after,
 [data-baseweb="tab-list"]::before {
-    display: none !important;
-    content: none !important;
-    background: none !important;
-}
-
-div[data-testid="stTabs"] > div:first-child::after {
-    display: none !important;
-    background: none !important;
-}
-
-[data-baseweb="tab-highlight"] { display: none !important; }
-
-div[class*="tabs"] div::after,
-div[class*="Tab"] div::after,
-div[class*="tab"] > div::after {
-    background: none !important;
-    display: none !important;
-}
-
-[data-baseweb="tab-list"] > div:last-child {
-    background: none !important;
-}
-
-.stTabs [data-baseweb="tab-list"] ~ div::after,
-.stTabs > div > div::after,
-.stTabs > div::after {
-    display: none !important;
+    background: #f8f9fa !important;
     background-image: none !important;
-}
-
-/* Zuverlässiger Fallback: Fade-Farbe auf Tab-Leisten-Farbe setzen */
-[data-testid="stTabs"] > div > div[style*="overflow"] {
     -webkit-mask-image: none !important;
     mask-image: none !important;
 }
 
-[data-testid="stTabs"] > div > div > div[style*="after"],
-[data-testid="stTabs"] > div > div::after {
-    background: linear-gradient(to right, transparent, #f8f9fa) !important;
+/* Scroll-Schatten im Tab-Container entfernen */
+[class*="StyledTabList"]::after,
+[class*="StyledTabList"]::before,
+[class*="tablist"]::after,
+[class*="tablist"]::before {
+    display: none !important;
+}
+
+/* Overflow-Container ohne Mask */
+.stTabs [role="tablist"] {
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+    overflow-x: auto !important;
+}
+
+.stTabs [role="tablist"]::-webkit-scrollbar {
+    display: none;
 }
 
 [data-baseweb="tab"] {
