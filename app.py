@@ -86,9 +86,9 @@ h4 { font-size: 15px !important; }
 
 /* Verbesserte Tab-Navigation */
 [data-baseweb="tab-list"] {
-    gap: 4px;
+    gap: 3px;
     background-color: #f8f9fa;
-    padding: 8px;
+    padding: 5px 6px;
     border-radius: 8px;
 }
 
@@ -124,10 +124,10 @@ h4 { font-size: 15px !important; }
 
 [data-baseweb="tab"] {
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 4px 8px;
     background-color: white;
     border: 1px solid #e0e0e0;
-    font-size: 12px;
+    font-size: 11px;
     transition: all 0.2s ease;
 }
 
