@@ -1184,6 +1184,15 @@ if st.session_state.df is not None and st.session_state.review_started:
 
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             
+            # Hauptlayout: Überschriften-Zeile
+            h1, h2, h3 = st.columns([1, 1, 1])
+            with h1:
+                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Nationales Screening</h4>", unsafe_allow_html=True)
+            with h2:
+                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
+            with h3:
+                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Bewertung</h4>", unsafe_allow_html=True)
+
             # Hauptlayout: Links Abbildungen, Rechts Kommentarfeld
             viz_col, comment_col = st.columns([2, 1])
             
@@ -1191,7 +1200,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                 left_col, right_col = st.columns(2)
                 
                 with left_col:
-                    st.markdown("<h4 style='margin-top: 6px; margin-bottom: 10px;'>Nationales Screening</h4>", unsafe_allow_html=True)
                     nat_data = df[nat_q_cols].stack().dropna()
                     n_total = len(nat_data)
                     
@@ -1233,7 +1241,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                     </div>""", unsafe_allow_html=True)
 
                 with right_col:
-                    st.markdown("<h4 style='margin-top: 6px; margin-bottom: 10px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
                     stud_data = df[stud_q_cols].stack().dropna()
                     n_total_stud = len(stud_data)
                     
@@ -1287,8 +1294,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                 st.markdown("""
                 <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
                 """, unsafe_allow_html=True)
-                
-                st.markdown("<h4 style='margin-top: 6px; margin-bottom: 10px;'>Bewertung</h4>", unsafe_allow_html=True)
                 
                 # Dropdown für Empfehlung
                 decision_options = [
