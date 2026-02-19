@@ -1242,13 +1242,8 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.markdown("### 📥 Export")
     
     # Bewertungsfortschritt in Sidebar
-    num_decided = len([d for d in st.session_state.gene_decisions.values() if d and d != 'Noch nicht bewertet'])
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
-    
-    # Kompakter Fortschritt in Sidebar
-    progress_pct = num_decided / total_genes if total_genes > 0 else 0
-    st.sidebar.progress(progress_pct, text=f"📊 {num_decided}/{total_genes} bewertet ({progress_pct*100:.0f}%)")
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
