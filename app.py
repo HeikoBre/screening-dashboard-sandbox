@@ -852,8 +852,33 @@ def generate_pdf():
     for gene in st.session_state.genes:
         disease = st.session_state.gene_dict.get(gene, '')
         
-        # Gen-Header
-        story.append(Paragraph(f"<b><i>{gene}</i></b>", gene_style))
+        # Gen-Header mit Badge rechts oben
+        overlap_group = st.session_state.nbs_overlap.get(gene, None)
+        
+        # Erstelle Header-Tabelle für Gen-Name (links) und Badge (rechts)
+        header_cells = [
+            [Paragraph(f"<b><i>{gene}</i></b>", gene_style), '']
+        ]
+        
+        if overlap_group == "NBS":
+            badge_style = ParagraphStyle('Badge', fontSize=9, textColor=colors.white, 
+                                        backColor=colors.HexColor('#2196F3'), 
+                                        alignment=2, borderPadding=3)
+            header_cells[0][1] = Paragraph("✓ Im NBS", badge_style)
+        elif overlap_group == "NGS2025":
+            badge_style = ParagraphStyle('Badge', fontSize=9, textColor=colors.white, 
+                                        backColor=colors.HexColor('#FF9800'), 
+                                        alignment=2, borderPadding=3)
+            header_cells[0][1] = Paragraph("🔬 NGS2025", badge_style)
+        
+        header_table = Table(header_cells, colWidths=[4.5*inch, 1.5*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        story.append(header_table)
+        
         story.append(Paragraph(disease[:1].upper() + disease[1:] if disease else '', disease_style))
         story.append(Spacer(1, 6))
         
@@ -1235,14 +1260,17 @@ if st.session_state.df is not None and st.session_state.review_started:
                         line-height: 1; flex-shrink: 0;'>&#9664;</button>
                     <div style='background: #4CAF50; color: white; padding: 4px 10px; 
                                 border-radius: 5px; font-weight: 700; font-size: 13px;
-                                font-style: italic; flex-shrink: 0; display: flex; align-items: center;'>
-                        {gene}{badge_html}
+                                font-style: italic; flex-shrink: 0;'>
+                        {gene}
                     </div>
                     <a href='https://omim.org/search?index=entry&search={gene}&filter=gene' 
                        target='_blank' 
-                       style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; text-decoration: none;'
+                       style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px;'
                        onmouseover="this.style.textDecoration='underline'"
-                       onmouseout="this.style.textDecoration='none'">{disease_display}</a>
+                       onmouseout="this.style.textDecoration='none'">
+                       <span style='overflow: hidden; text-overflow: ellipsis;'>{disease_display}</span>
+                       {badge_html}
+                    </a>
                     <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
