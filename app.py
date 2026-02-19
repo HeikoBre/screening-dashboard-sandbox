@@ -294,25 +294,29 @@ if st.session_state.prospective_studies is None:
         response = urllib.request.urlopen(studies_url)
         excel_data = io.BytesIO(response.read())
         
-        # Lade alle drei Sheets mit openpyxl engine
+        # Lade alle vier Sheets mit openpyxl engine
         babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+', engine='openpyxl')
         excel_data.seek(0)
         guardian_df = pd.read_excel(excel_data, sheet_name='Guardian', engine='openpyxl')
         excel_data.seek(0)
         generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
+        excel_data.seek(0)
+        beacons_df = pd.read_excel(excel_data, sheet_name='Beacons', engine='openpyxl')
         
         # Erstelle Lookup-Dicts: {gene: disorder}
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
-            'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str)))
+            'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str))),
+            'Beacons': dict(zip(beacons_df['Gene'].astype(str), beacons_df['Disorder'].astype(str)))
         }
         st.session_state.prospective_studies_error = None
     except Exception as e:
         st.session_state.prospective_studies = {
             'BabyScreen+': {},
             'Guardian': {},
-            'Generation Study': {}
+            'Generation Study': {},
+            'Beacons': {}
         }
         st.session_state.prospective_studies_error = str(e)
 
@@ -1466,12 +1470,14 @@ if st.session_state.df is not None and st.session_state.review_started:
                 babyscreen_disorder = studies['BabyScreen+'].get(gene, None)
                 guardian_disorder = studies['Guardian'].get(gene, None)
                 generation_disorder = studies['Generation Study'].get(gene, None)
+                beacons_disorder = studies['Beacons'].get(gene, None)
                 
                 study_html_parts = []
                 for idx, (study_name, disorder) in enumerate([
                     ('BabyScreen+', babyscreen_disorder),
                     ('Guardian', guardian_disorder),
-                    ('Generation Study', generation_disorder)
+                    ('Generation Study', generation_disorder),
+                    ('Beacons', beacons_disorder)
                 ]):
                     if disorder:
                         icon = "✓"
