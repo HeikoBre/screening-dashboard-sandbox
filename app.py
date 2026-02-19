@@ -856,22 +856,39 @@ def generate_pdf():
         overlap_group = st.session_state.nbs_overlap.get(gene, None)
         
         # Erstelle Header-Tabelle für Gen-Name (links) und Badge (rechts)
-        header_cells = [
-            [Paragraph(f"<b><i>{gene}</i></b>", gene_style), '']
-        ]
+        header_left = Paragraph(f"<b><i>{gene}</i></b>", gene_style)
         
+        # Badge als kleine Tabelle mit abgerundeten Ecken
         if overlap_group == "NBS":
-            badge_style = ParagraphStyle('Badge', fontSize=9, textColor=colors.white, 
-                                        backColor=colors.HexColor('#2196F3'), 
-                                        alignment=2, borderPadding=3)
-            header_cells[0][1] = Paragraph("✓ Im NBS", badge_style)
+            badge_text = "✓ Im NBS"
+            badge_color = colors.HexColor('#2196F3')
         elif overlap_group == "NGS2025":
-            badge_style = ParagraphStyle('Badge', fontSize=9, textColor=colors.white, 
-                                        backColor=colors.HexColor('#FF9800'), 
-                                        alignment=2, borderPadding=3)
-            header_cells[0][1] = Paragraph("🔬 NGS2025", badge_style)
+            badge_text = "🔬 NGS2025"
+            badge_color = colors.HexColor('#FF9800')
+        else:
+            badge_text = None
+            badge_color = None
         
-        header_table = Table(header_cells, colWidths=[4.5*inch, 1.5*inch])
+        if badge_text:
+            badge_para = Paragraph(f"<font color='white' size='9'><b>{badge_text}</b></font>", 
+                                  ParagraphStyle('BadgeText', alignment=1))
+            badge_table = Table([[badge_para]], colWidths=[0.9*inch])
+            badge_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), badge_color),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+            ]))
+            header_right = badge_table
+        else:
+            header_right = ''
+        
+        header_table = Table([[header_left, header_right]], colWidths=[4.6*inch, 1.4*inch])
         header_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, 0), 'LEFT'),
             ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
