@@ -1464,7 +1464,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                 guardian_disorder = studies['Guardian'].get(gene, None)
                 generation_disorder = studies['Generation Study'].get(gene, None)
                 
-                study_items = []
+                study_html_parts = []
                 for study_name, disorder in [
                     ('BabyScreen+', babyscreen_disorder),
                     ('Guardian', guardian_disorder),
@@ -1479,19 +1479,22 @@ if st.session_state.df is not None and st.session_state.review_started:
                         color = "#999"
                         tooltip = f"{gene} nicht in {study_name}"
                     
-                    study_items.append(f"""
-                        <span style='display: inline-block; margin-right: 12px;' title='{tooltip}'>
-                            <span style='color: {color}; font-weight: 700; margin-right: 3px;'>{icon}</span>
-                            <span style='font-size: 11px; color: #666;'>{study_name}</span>
-                        </span>
-                    """)
+                    study_html_parts.append(
+                        f"<span style='display: inline-block; margin-right: 12px;' title='{tooltip}'>"
+                        f"<span style='color: {color}; font-weight: 700; margin-right: 3px;'>{icon}</span>"
+                        f"<span style='font-size: 11px; color: #666;'>{study_name}</span>"
+                        f"</span>"
+                    )
                 
-                st.markdown(f"""
-                <div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
-                    <span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>
-                    {''.join(study_items)}
-                </div>
-                """, unsafe_allow_html=True)
+                studies_html = ''.join(study_html_parts)
+                
+                st.markdown(
+                    f"<div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>"
+                    f"<span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>"
+                    f"{studies_html}"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
             # Rechte Spalte: Bewertung und optionales Kommentarfeld
             with comment_col:
