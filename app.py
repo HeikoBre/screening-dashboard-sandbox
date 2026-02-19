@@ -271,6 +271,7 @@ if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
 if 'review_started' not in st.session_state: st.session_state.review_started = False
 if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
+if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
@@ -284,6 +285,34 @@ if st.session_state.nbs_overlap is None:
         st.session_state.nbs_overlap = dict(zip(overlap_df['Gene'], overlap_df['Group']))
     except Exception as e:
         st.session_state.nbs_overlap = {}  # Fallback: leeres Dict bei Fehler
+
+# Lade Prospective Studies Excel beim ersten Start
+if st.session_state.prospective_studies is None:
+    try:
+        import urllib.request
+        studies_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/Prospective_studies.xlsx"
+        response = urllib.request.urlopen(studies_url)
+        excel_data = io.BytesIO(response.read())
+        
+        # Lade alle drei Sheets
+        babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+')
+        excel_data.seek(0)
+        guardian_df = pd.read_excel(excel_data, sheet_name='Guardian')
+        excel_data.seek(0)
+        generation_df = pd.read_excel(excel_data, sheet_name='Generation Study')
+        
+        # Erstelle Lookup-Dicts: {gene: disorder}
+        st.session_state.prospective_studies = {
+            'BabyScreen+': dict(zip(babyscreen_df['Gene'], babyscreen_df['Disorder'])),
+            'Guardian': dict(zip(guardian_df['Gene'], guardian_df['Disorder'])),
+            'Generation Study': dict(zip(generation_df['Gene'], generation_df['Disorder']))
+        }
+    except Exception as e:
+        st.session_state.prospective_studies = {
+            'BabyScreen+': {},
+            'Guardian': {},
+            'Generation Study': {}
+        }
 
 # Upload
 if st.session_state.df is None:
@@ -863,7 +892,7 @@ def generate_pdf():
             badge_text = "✓ Im NBS"
             badge_color = colors.HexColor('#2196F3')
         elif overlap_group == "NGS2025":
-            badge_text = "🔬 NGS2025"
+            badge_text = "✓ NGS2025"
             badge_color = colors.HexColor('#FF9800')
         else:
             badge_text = None
@@ -1421,11 +1450,46 @@ if st.session_state.df is not None and st.session_state.review_started:
 
                 # Legende direkt unter den Abbildungen
                 st.markdown("""
-                <div style='background-color: transparent; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
+                <div style='background-color: transparent; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border: 1px solid #e0e0e0;'>
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
                     <span style='background-color: #ACF3AE; padding: 2px 8px; border-radius: 3px; margin-left: 10px; font-size: 11px;'>Ja</span>
                     <span style='background-color: #C43D5A; color: white; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Nein</span>
                     <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann ich nicht beantworten</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Prospective Studies Info
+                studies = st.session_state.prospective_studies
+                babyscreen_disorder = studies['BabyScreen+'].get(gene, None)
+                guardian_disorder = studies['Guardian'].get(gene, None)
+                generation_disorder = studies['Generation Study'].get(gene, None)
+                
+                study_items = []
+                for study_name, disorder in [
+                    ('BabyScreen+', babyscreen_disorder),
+                    ('Guardian', guardian_disorder),
+                    ('Generation Study', generation_disorder)
+                ]:
+                    if disorder:
+                        icon = "✓"
+                        color = "#4CAF50"
+                        tooltip = f"{gene}: {disorder}"
+                    else:
+                        icon = "✗"
+                        color = "#999"
+                        tooltip = f"{gene} nicht in {study_name}"
+                    
+                    study_items.append(f"""
+                        <span style='display: inline-block; margin-right: 12px;' title='{tooltip}'>
+                            <span style='color: {color}; font-weight: 700; margin-right: 3px;'>{icon}</span>
+                            <span style='font-size: 11px; color: #666;'>{study_name}</span>
+                        </span>
+                    """)
+                
+                st.markdown(f"""
+                <div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
+                    <span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>
+                    {''.join(study_items)}
                 </div>
                 """, unsafe_allow_html=True)
 
