@@ -483,6 +483,22 @@ if st.session_state.df is None:
                 })
             
             st.session_state.summary_df = pd.DataFrame(summary_data)
+            
+            # Automatische Bewertungsvorschläge basierend auf Umfrage
+            if 'gene_decisions' not in st.session_state or not st.session_state.gene_decisions:
+                st.session_state.gene_decisions = {}
+                for gene in st.session_state.genes:
+                    gene_data = st.session_state.summary_df[st.session_state.summary_df['Gen'] == gene].iloc[0]
+                    nat_ja_pct = gene_data['National_Ja_pct']
+                    stud_ja_pct = gene_data['Studie_Ja_pct']
+                    
+                    if nat_ja_pct >= 80:
+                        st.session_state.gene_decisions[gene] = '🟢 Aufnahme in nationales gNBS'
+                    elif stud_ja_pct >= 80:
+                        st.session_state.gene_decisions[gene] = '🟡 Aufnahme in wissenschaftliche gNBS Studie'
+                    else:
+                        st.session_state.gene_decisions[gene] = '🔴 Keine Berücksichtigung im gNBS'
+            
             st.rerun()
 
 else:
@@ -1235,6 +1251,29 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.progress(progress_pct, text=f"📊 {num_decided}/{total_genes} bewertet ({progress_pct*100:.0f}%)")
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
+    
+    # Export-Dialog wenn alle bewertet sind
+    if num_decided == total_genes and total_genes > 0:
+        st.success("✅ **Alle Gene bewertet!** Möchten Sie die Ergebnisse jetzt exportieren?")
+        col_pdf, col_csv = st.columns(2)
+        with col_pdf:
+            pdf_bytes = generate_pdf()
+            st.download_button(
+                '📄 PDF herunterladen',
+                data=pdf_bytes,
+                file_name=f'gNBS_Review_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf',
+                mime='application/pdf',
+                use_container_width=True
+            )
+        with col_csv:
+            csv_data = generate_csv()
+            st.download_button(
+                '📊 CSV herunterladen',
+                data=csv_data,
+                file_name=f'gNBS_Review_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
+                mime='text/csv',
+                use_container_width=True
+            )
     
     # Zeige welche Gene bewertet sind
     decided_genes = {gene: decision for gene, decision in st.session_state.gene_decisions.items() 
