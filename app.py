@@ -272,6 +272,21 @@ if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {
 if 'review_started' not in st.session_state: st.session_state.review_started = False
 if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
 if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
+if 'attendees_list' not in st.session_state: st.session_state.attendees_list = None
+if 'selected_attendees' not in st.session_state: st.session_state.selected_attendees = []
+
+# Lade Namen/Kürzel beim ersten Start
+if st.session_state.attendees_list is None:
+    try:
+        import urllib.request
+        names_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/names.csv"
+        response = urllib.request.urlopen(names_url)
+        names_content = response.read().decode('utf-8-sig')
+        names_df = pd.read_csv(io.StringIO(names_content))
+        # Erstelle Dict: {Kürzel: Voller Name}
+        st.session_state.attendees_list = dict(zip(names_df['Name'], names_df['Kürzel']))
+    except Exception as e:
+        st.session_state.attendees_list = {}
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
@@ -595,6 +610,48 @@ if st.session_state.df is not None and not st.session_state.review_started:
     
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
     
+    # Teilnehmer-Auswahl
+    st.markdown("#### 👥 Anwesende Teilnehmer")
+    st.markdown("<small style='color:#666;'>Wählen Sie die Teilnehmer des Review-Meetings aus:</small>", unsafe_allow_html=True)
+    
+    # Kürzel als Optionen (sortiert)
+    if st.session_state.attendees_list:
+        attendee_options = sorted(st.session_state.attendees_list.keys())
+        
+        selected = st.multiselect(
+            "Teilnehmer auswählen",
+            options=attendee_options,
+            default=st.session_state.selected_attendees,
+            label_visibility="collapsed",
+            help="Mehrfachauswahl möglich"
+        )
+        st.session_state.selected_attendees = selected
+        
+        # Zusätzliche Teilnehmer (freies Textfeld)
+        additional = st.text_input(
+            "Weitere Teilnehmer (optional)",
+            placeholder="z.B. 'Dr. Anna Müller (Gast), Prof. Thomas Weber'",
+            help="Für Teilnehmer die nicht in der Liste sind"
+        )
+        if additional.strip():
+            if 'additional_attendees' not in st.session_state:
+                st.session_state.additional_attendees = additional
+            else:
+                st.session_state.additional_attendees = additional
+        
+        # Zeige Vorschau
+        if selected or (additional and additional.strip()):
+            st.markdown("<small style='color:#666;'>**Anwesende:**</small>", unsafe_allow_html=True)
+            all_attendees = []
+            for abbr in selected:
+                full_name = st.session_state.attendees_list.get(abbr, abbr)
+                all_attendees.append(f"{abbr} ({full_name})")
+            if additional and additional.strip():
+                all_attendees.append(additional)
+            st.caption(", ".join(all_attendees))
+    
+    st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+    
     # Start-Button
     col_l, col_btn, col_r = st.columns([2, 2, 2])
     with col_btn:
@@ -614,6 +671,18 @@ def generate_csv():
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     export_df.insert(1, 'Export_Datum', datetime.now().strftime('%Y-%m-%d'))
     export_df.insert(2, 'Export_Zeit', datetime.now().strftime('%H:%M:%S'))
+    
+    # Teilnehmer
+    attendees_str = ""
+    if st.session_state.selected_attendees:
+        attendees_names = [st.session_state.attendees_list.get(abbr, abbr) for abbr in st.session_state.selected_attendees]
+        attendees_str = "; ".join(attendees_names)
+        if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
+            attendees_str += "; " + st.session_state.additional_attendees
+    elif hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
+        attendees_str = st.session_state.additional_attendees
+    
+    export_df.insert(3, 'Anwesende_Teilnehmer', attendees_str)
     
     # === UMFRAGE-ERGEBNISSE (Delphi Runde 1) ===
     # Bereits vorhanden: National_Ja_pct, National_n, Studie_Ja_pct, Studie_n
@@ -872,6 +941,28 @@ def generate_pdf():
     story.append(Spacer(1, 12))
     story.append(Paragraph(f"Gesamtanzahl Responses: {st.session_state.total_responses}", styles['Normal']))
     story.append(Paragraph(f"Anzahl Gene: {len(st.session_state.genes)}", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Anwesende Teilnehmer
+    if st.session_state.selected_attendees or (hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees):
+        story.append(Paragraph("<b>Anwesende:</b>", styles['Heading3']))
+        attendees_list = []
+        
+        # Reguläre Teilnehmer aus Liste
+        for abbr in st.session_state.selected_attendees:
+            full_name = st.session_state.attendees_list.get(abbr, abbr)
+            attendees_list.append(full_name)
+        
+        # Zusätzliche Teilnehmer
+        if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
+            attendees_list.append(st.session_state.additional_attendees)
+        
+        # Ausgabe
+        for attendee in attendees_list:
+            story.append(Paragraph(f"• {attendee}", styles['Normal']))
+        
+        story.append(Spacer(1, 12))
+    
     story.append(PageBreak())
     
     # Inhaltsverzeichnis auf Seite 2
