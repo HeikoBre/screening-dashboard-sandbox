@@ -270,6 +270,20 @@ if 'total_responses' not in st.session_state: st.session_state.total_responses =
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
 if 'review_started' not in st.session_state: st.session_state.review_started = False
+if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
+
+# Lade NBS/NGS2025 Overlap-Daten beim ersten Start
+if st.session_state.nbs_overlap is None:
+    try:
+        import urllib.request
+        overlap_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/Overlap_annotated_NBS.csv"
+        response = urllib.request.urlopen(overlap_url)
+        overlap_content = response.read().decode('utf-8-sig')
+        overlap_df = pd.read_csv(io.StringIO(overlap_content), sep=';')
+        # Erstelle Lookup-Dict: {gene: group}
+        st.session_state.nbs_overlap = dict(zip(overlap_df['Gene'], overlap_df['Group']))
+    except Exception as e:
+        st.session_state.nbs_overlap = {}  # Fallback: leeres Dict bei Fehler
 
 # Upload
 if st.session_state.df is None:
@@ -1199,6 +1213,14 @@ if st.session_state.df is not None and st.session_state.review_started:
             disease_display = disease[:1].upper() + disease[1:] if disease else ''
             disease_escaped = disease_display.replace("'", "\\'")
             
+            # Prüfe ob Gen in NBS oder NGS2025
+            overlap_group = st.session_state.nbs_overlap.get(gene, None)
+            badge_html = ""
+            if overlap_group == "NBS":
+                badge_html = "<span style='background:#2196F3; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; margin-left:8px;'>✓ NBS</span>"
+            elif overlap_group == "NGS2025":
+                badge_html = "<span style='background:#FF9800; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; margin-left:8px;'>🔬 NGS2025</span>"
+            
             nav_html = f"""
             <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
                         padding: 8px 12px; 
@@ -1213,8 +1235,8 @@ if st.session_state.df is not None and st.session_state.review_started:
                         line-height: 1; flex-shrink: 0;'>&#9664;</button>
                     <div style='background: #4CAF50; color: white; padding: 4px 10px; 
                                 border-radius: 5px; font-weight: 700; font-size: 13px;
-                                font-style: italic; flex-shrink: 0;'>
-                        {gene}
+                                font-style: italic; flex-shrink: 0; display: flex; align-items: center;'>
+                        {gene}{badge_html}
                     </div>
                     <a href='https://omim.org/search?index=entry&search={gene}&filter=gene' 
                        target='_blank' 
