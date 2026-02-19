@@ -294,25 +294,27 @@ if st.session_state.prospective_studies is None:
         response = urllib.request.urlopen(studies_url)
         excel_data = io.BytesIO(response.read())
         
-        # Lade alle drei Sheets
-        babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+')
+        # Lade alle drei Sheets mit openpyxl engine
+        babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+', engine='openpyxl')
         excel_data.seek(0)
-        guardian_df = pd.read_excel(excel_data, sheet_name='Guardian')
+        guardian_df = pd.read_excel(excel_data, sheet_name='Guardian', engine='openpyxl')
         excel_data.seek(0)
-        generation_df = pd.read_excel(excel_data, sheet_name='Generation Study')
+        generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
         
         # Erstelle Lookup-Dicts: {gene: disorder}
         st.session_state.prospective_studies = {
-            'BabyScreen+': dict(zip(babyscreen_df['Gene'], babyscreen_df['Disorder'])),
-            'Guardian': dict(zip(guardian_df['Gene'], guardian_df['Disorder'])),
-            'Generation Study': dict(zip(generation_df['Gene'], generation_df['Disorder']))
+            'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
+            'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
+            'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str)))
         }
+        st.session_state.prospective_studies_error = None
     except Exception as e:
         st.session_state.prospective_studies = {
             'BabyScreen+': {},
             'Guardian': {},
             'Generation Study': {}
         }
+        st.session_state.prospective_studies_error = str(e)
 
 # Upload
 if st.session_state.df is None:
@@ -1463,6 +1465,8 @@ if st.session_state.df is not None and st.session_state.review_started:
                 
                 # DEBUG: Zeige was geladen wurde
                 if gene == st.session_state.genes[0]:  # Nur beim ersten Gen
+                    if hasattr(st.session_state, 'prospective_studies_error') and st.session_state.prospective_studies_error:
+                        st.error(f"Excel-Ladefehler: {st.session_state.prospective_studies_error}")
                     st.info(f"DEBUG: BabyScreen+ hat {len(studies['BabyScreen+'])} Gene, "
                            f"Guardian hat {len(studies['Guardian'])} Gene, "
                            f"Generation Study hat {len(studies['Generation Study'])} Gene")
