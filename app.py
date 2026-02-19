@@ -269,7 +269,6 @@ if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
-if 'visited_genes' not in st.session_state: st.session_state.visited_genes = set()
 if 'review_started' not in st.session_state: st.session_state.review_started = False
 if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
 if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
@@ -1246,36 +1245,12 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     num_decided = len([d for d in st.session_state.gene_decisions.values() if d and d != 'Noch nicht bewertet'])
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
-    num_visited = len(st.session_state.visited_genes)
     
-    # Kompakter Fortschritt in Sidebar (basierend auf Interaktion)
-    progress_pct = num_visited / total_genes if total_genes > 0 else 0
-    st.sidebar.progress(progress_pct, text=f"📊 {num_visited}/{total_genes} Gene bearbeitet ({progress_pct*100:.0f}%)")
+    # Kompakter Fortschritt in Sidebar
+    progress_pct = num_decided / total_genes if total_genes > 0 else 0
+    st.sidebar.progress(progress_pct, text=f"📊 {num_decided}/{total_genes} bewertet ({progress_pct*100:.0f}%)")
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
-    
-    # Export-Dialog wenn >= 50% Gene bearbeitet wurden
-    if num_visited >= total_genes * 0.5 and total_genes > 0:
-        st.success(f"✅ **{num_visited} von {total_genes} Genen bearbeitet!** Möchten Sie die Ergebnisse jetzt exportieren?")
-        col_pdf, col_csv = st.columns(2)
-        with col_pdf:
-            pdf_bytes = generate_pdf()
-            st.download_button(
-                '📄 PDF herunterladen',
-                data=pdf_bytes,
-                file_name=f'gNBS_Review_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf',
-                mime='application/pdf',
-                use_container_width=True
-            )
-        with col_csv:
-            csv_data = generate_csv()
-            st.download_button(
-                '📊 CSV herunterladen',
-                data=csv_data,
-                file_name=f'gNBS_Review_{datetime.now().strftime("%Y%m%d_%H%M")}.csv',
-                mime='text/csv',
-                use_container_width=True
-            )
     
     # Zeige welche Gene bewertet sind
     decided_genes = {gene: decision for gene, decision in st.session_state.gene_decisions.items() 
@@ -1605,9 +1580,8 @@ if st.session_state.df is not None and st.session_state.review_started:
                     label_visibility='collapsed'
                 )
                 
-                # Speichere Entscheidung automatisch und markiere Gen als besucht
+                # Speichere Entscheidung automatisch
                 st.session_state.gene_decisions[gene] = decision
-                st.session_state.visited_genes.add(gene)
                 
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 
