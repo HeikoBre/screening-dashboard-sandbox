@@ -1,0 +1,61 @@
+﻿Gene;Disorder;Group
+ACADM;Medium-chain acyl-CoA dehydrogenase deficiency;NBS
+ACADVL;VLCAD deficiency;NBS
+ARG1;Argininaemia;NGS2025
+ASL;Argininosuccinic aciduria;NGS2025
+ASS1;Citrullinaemia;NGS2025
+BCKDHA;Maple syrup urine disease, type Ia;NBS
+BCKDHB;Maple syrup urine disease, type Ib;NBS
+BTD;Biotinidase deficiency;NBS
+CBS;Homocystinuria, B6-responsive and nonresponsive types;NBS
+CPS1;Carbamoyl phosphate synthetase I deficiency;NGS2025
+CPT1A;Carnitine palmitoyltransferase I deficiency;NBS
+CPT2;Carnitine palmitoyltransferase II deficiency infantile;NBS
+DBT;Maple syrup urine disease, type II;NBS
+FAH;Tyrosinemia, type I;NBS
+GALT;Galactosaemia;NBS
+GCDH;Glutaric aciduria, type I;NBS
+HADHA;LCHAD deficiency;NBS
+HADHB;Mitochondrial trifunctional protein deficiency 2;NBS
+HMGCL;HMG-CoA lyase deficiency;NGS2025
+IVD;Isovaleric acidaemia;NBS
+LMBRD1;Methylmalonic aciduria and homocystinuria, cblF type;NBS
+MCEE;Methylmalonyl-CoA epimerase deficiency;NBS
+MMAA;Methylmalonic aciduria, vitamin B12-responsive, cblA type;NBS
+MMAB;Methylmalonic aciduria, vitamin B12-responsive, cblB type;NBS
+MMACHC;Methylmalonic aciduria and homocystinuria, cblC type;NBS
+MMADHC;Methylmalonic aciduria, cblD type, variant 2;NBS
+MTR;Homocystinuria-megaloblastic anaemia, cblG complementation type;NBS
+MTRR;Homocystinuria-megaloblastic anaemia, cbl E type;NBS
+NAGS;N-acetylglutamate synthase deficiency;NGS2025
+OTC;Ornithine transcarbamylase deficiency;NGS2025
+PAH;Phenylketonuria;NBS
+PCCA;Propionic acidemia 1;NBS
+PCCB;Propionic acidemia 2;NBS
+PTS;Hyperphenylalaninemia due to 6-pyruvoyl-tetrahydropterin synthase deficiency;NBS
+QDPR;Hyperphenylalaninemia due to dihydropteridine reductase deficiency;NBS
+SLC22A5;Primary systemic carnitine deficiency;NBS
+SLC25A15;Hyperornithinemia-hyperammonemia-homocitrullinuria syndrome;NGS2025
+SLC25A20;Carnitine-acylcarnitine translocase deficiency;NGS2025
+TCN2;Transcobalamin II deficiency;NBS
+DUOX2;Thyroid dyshormonogenesis 6;NBS
+DUOXA2;Thyroid dyshormonogenesis 5;NBS
+FOXE1;Bamforth-Lazarus syndrome;NBS
+GLIS3;Diabetes mellitus, neonatal, with congenital hypothyroidism;NBS
+PAX8;Hypothyroidism, congenital, due to thyroid dysgenesis or hypoplasia;NBS
+SLC5A5;Thyroid dyshormonigenesis 1;NBS
+TG;Thyroid dyshormonogenesis 3;NBS
+TPO;Thyroid dyshormonogenesis 2A;NBS
+TSHR;Hypothyroidism, congenital, nongoitrous, 1;NBS
+ADA;Severe combined immunodeficiency due to ADA deficiency;NBS
+AK2;Reticular Dysgenesis;NBS
+DCLRE1C;Severe combined immunodeficiency with sensitivity to ionising radiation;NBS
+IL2RG;SCID X-Linked;NBS
+IL7R;Immunodeficiency 104, severe combined;NBS
+JAK3;JAK3 related T cell-negative, B cell-positive, natural killer cell-negative severe combined immunodeficiency;NBS
+NHEJ1;Severe combined immunodeficiency with microcephaly, growth retardation, and sensitivity to ionizing radiation;NBS
+PNP;Immunodeficiency due to purine nucleoside phosphorylase deficiency;NBS
+RAG1;RAG1 related severe combined immunodeficiency, B cell-negative;NBS
+RAG2;RAG2 related severe combined immunodeficiency, B cell-negative;NBS
+SMN1;Spinal Muscular Atrophy;NBS
+CFTR;Cystic fibrosis;NBS
