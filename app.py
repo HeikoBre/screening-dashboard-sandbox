@@ -1248,15 +1248,15 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     total_genes = len(st.session_state.genes)
     num_visited = len(st.session_state.visited_genes)
     
-    # Kompakter Fortschritt in Sidebar
+    # Kompakter Fortschritt in Sidebar (basierend auf Interaktion)
     progress_pct = num_visited / total_genes if total_genes > 0 else 0
-    st.sidebar.progress(progress_pct, text=f"📊 {num_visited}/{total_genes} Gene durchgesehen ({progress_pct*100:.0f}%)")
+    st.sidebar.progress(progress_pct, text=f"📊 {num_visited}/{total_genes} Gene bearbeitet ({progress_pct*100:.0f}%)")
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
-    # Export-Dialog wenn alle Gene besucht wurden
-    if num_visited == total_genes and total_genes > 0:
-        st.success("✅ **Alle Gene durchgesehen!** Möchten Sie die Ergebnisse jetzt exportieren?")
+    # Export-Dialog wenn >= 50% Gene bearbeitet wurden
+    if num_visited >= total_genes * 0.5 and total_genes > 0:
+        st.success(f"✅ **{num_visited} von {total_genes} Genen bearbeitet!** Möchten Sie die Ergebnisse jetzt exportieren?")
         col_pdf, col_csv = st.columns(2)
         with col_pdf:
             pdf_bytes = generate_pdf()
@@ -1331,9 +1331,6 @@ if st.session_state.df is not None and st.session_state.review_started:
         with tab:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
-            
-            # Markiere Gen als besucht
-            st.session_state.visited_genes.add(gene)
             
             # Visueller Header mit Hervorhebung + JS-Navigation via components
             gene_escaped = gene.replace("'", "\\'")
@@ -1608,8 +1605,9 @@ if st.session_state.df is not None and st.session_state.review_started:
                     label_visibility='collapsed'
                 )
                 
-                # Speichere Entscheidung automatisch
+                # Speichere Entscheidung automatisch und markiere Gen als besucht
                 st.session_state.gene_decisions[gene] = decision
+                st.session_state.visited_genes.add(gene)
                 
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 
