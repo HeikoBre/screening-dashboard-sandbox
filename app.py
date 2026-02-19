@@ -1460,6 +1460,16 @@ if st.session_state.df is not None and st.session_state.review_started:
                 
                 # Prospective Studies Info
                 studies = st.session_state.prospective_studies
+                
+                # DEBUG: Zeige was geladen wurde
+                if gene == st.session_state.genes[0]:  # Nur beim ersten Gen
+                    st.info(f"DEBUG: BabyScreen+ hat {len(studies['BabyScreen+'])} Gene, "
+                           f"Guardian hat {len(studies['Guardian'])} Gene, "
+                           f"Generation Study hat {len(studies['Generation Study'])} Gene")
+                    if studies['BabyScreen+']:
+                        sample_genes = list(studies['BabyScreen+'].keys())[:5]
+                        st.info(f"Beispiel BabyScreen+ Gene: {sample_genes}")
+                
                 babyscreen_disorder = studies['BabyScreen+'].get(gene, None)
                 guardian_disorder = studies['Guardian'].get(gene, None)
                 generation_disorder = studies['Generation Study'].get(gene, None)
