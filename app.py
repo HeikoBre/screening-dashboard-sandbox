@@ -1463,27 +1463,16 @@ if st.session_state.df is not None and st.session_state.review_started:
                 # Prospective Studies Info
                 studies = st.session_state.prospective_studies
                 
-                # DEBUG: Zeige was geladen wurde
-                if gene == st.session_state.genes[0]:  # Nur beim ersten Gen
-                    if hasattr(st.session_state, 'prospective_studies_error') and st.session_state.prospective_studies_error:
-                        st.error(f"Excel-Ladefehler: {st.session_state.prospective_studies_error}")
-                    st.info(f"DEBUG: BabyScreen+ hat {len(studies['BabyScreen+'])} Gene, "
-                           f"Guardian hat {len(studies['Guardian'])} Gene, "
-                           f"Generation Study hat {len(studies['Generation Study'])} Gene")
-                    if studies['BabyScreen+']:
-                        sample_genes = list(studies['BabyScreen+'].keys())[:5]
-                        st.info(f"Beispiel BabyScreen+ Gene: {sample_genes}")
-                
                 babyscreen_disorder = studies['BabyScreen+'].get(gene, None)
                 guardian_disorder = studies['Guardian'].get(gene, None)
                 generation_disorder = studies['Generation Study'].get(gene, None)
                 
                 study_html_parts = []
-                for study_name, disorder in [
+                for idx, (study_name, disorder) in enumerate([
                     ('BabyScreen+', babyscreen_disorder),
                     ('Guardian', guardian_disorder),
                     ('Generation Study', generation_disorder)
-                ]:
+                ]):
                     if disorder:
                         icon = "✓"
                         color = "#4CAF50"
@@ -1493,8 +1482,11 @@ if st.session_state.df is not None and st.session_state.review_started:
                         color = "#999"
                         tooltip = f"{gene} nicht in {study_name}"
                     
+                    # Escape für data-attribute
+                    tooltip_escaped = tooltip.replace('"', '&quot;').replace("'", '&#39;')
+                    
                     study_html_parts.append(
-                        f"<span style='display: inline-block; margin-right: 12px;' title='{tooltip}'>"
+                        f"<span class='study-item study-{idx}' data-tooltip='{tooltip_escaped}' style='display: inline-block; margin-right: 12px; position: relative; cursor: help;'>"
                         f"<span style='color: {color}; font-weight: 700; margin-right: 3px;'>{icon}</span>"
                         f"<span style='font-size: 11px; color: #666;'>{study_name}</span>"
                         f"</span>"
@@ -1503,10 +1495,35 @@ if st.session_state.df is not None and st.session_state.review_started:
                 studies_html = ''.join(study_html_parts)
                 
                 st.markdown(
-                    f"<div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>"
-                    f"<span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>"
-                    f"{studies_html}"
-                    f"</div>",
+                    f"""
+                    <style>
+                    .study-item::after {{
+                        content: attr(data-tooltip);
+                        position: absolute;
+                        bottom: 100%;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: #333;
+                        color: white;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        white-space: nowrap;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.2s;
+                        margin-bottom: 5px;
+                        z-index: 1000;
+                    }}
+                    .study-item:hover::after {{
+                        opacity: 1;
+                    }}
+                    </style>
+                    <div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
+                    <span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>
+                    {studies_html}
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
