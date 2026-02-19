@@ -269,6 +269,7 @@ if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
+if 'visited_genes' not in st.session_state: st.session_state.visited_genes = set()
 if 'review_started' not in st.session_state: st.session_state.review_started = False
 if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
 if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
@@ -1245,16 +1246,17 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     num_decided = len([d for d in st.session_state.gene_decisions.values() if d and d != 'Noch nicht bewertet'])
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
+    num_visited = len(st.session_state.visited_genes)
     
     # Kompakter Fortschritt in Sidebar
-    progress_pct = num_decided / total_genes if total_genes > 0 else 0
-    st.sidebar.progress(progress_pct, text=f"📊 {num_decided}/{total_genes} bewertet ({progress_pct*100:.0f}%)")
+    progress_pct = num_visited / total_genes if total_genes > 0 else 0
+    st.sidebar.progress(progress_pct, text=f"📊 {num_visited}/{total_genes} Gene durchgesehen ({progress_pct*100:.0f}%)")
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
-    # Export-Dialog wenn alle bewertet sind
-    if num_decided == total_genes and total_genes > 0:
-        st.success("✅ **Alle Gene bewertet!** Möchten Sie die Ergebnisse jetzt exportieren?")
+    # Export-Dialog wenn alle Gene besucht wurden
+    if num_visited == total_genes and total_genes > 0:
+        st.success("✅ **Alle Gene durchgesehen!** Möchten Sie die Ergebnisse jetzt exportieren?")
         col_pdf, col_csv = st.columns(2)
         with col_pdf:
             pdf_bytes = generate_pdf()
@@ -1329,6 +1331,9 @@ if st.session_state.df is not None and st.session_state.review_started:
         with tab:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
+            
+            # Markiere Gen als besucht
+            st.session_state.visited_genes.add(gene)
             
             # Visueller Header mit Hervorhebung + JS-Navigation via components
             gene_escaped = gene.replace("'", "\\'")
