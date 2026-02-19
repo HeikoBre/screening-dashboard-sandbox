@@ -294,21 +294,27 @@ if st.session_state.prospective_studies is None:
         response = urllib.request.urlopen(studies_url)
         excel_data = io.BytesIO(response.read())
         
-        # Lade alle vier Sheets mit openpyxl engine
+        # Lade Sheets mit openpyxl engine
         babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+', engine='openpyxl')
         excel_data.seek(0)
         guardian_df = pd.read_excel(excel_data, sheet_name='Guardian', engine='openpyxl')
         excel_data.seek(0)
         generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
-        excel_data.seek(0)
-        beacons_df = pd.read_excel(excel_data, sheet_name='Beacons', engine='openpyxl')
+        
+        # Beacons ist optional
+        try:
+            excel_data.seek(0)
+            beacons_df = pd.read_excel(excel_data, sheet_name='Beacons', engine='openpyxl')
+            beacons_dict = dict(zip(beacons_df['Gene'].astype(str), beacons_df['Disorder'].astype(str)))
+        except:
+            beacons_dict = {}
         
         # Erstelle Lookup-Dicts: {gene: disorder}
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
             'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str))),
-            'Beacons': dict(zip(beacons_df['Gene'].astype(str), beacons_df['Disorder'].astype(str)))
+            'Beacons': beacons_dict
         }
         st.session_state.prospective_studies_error = None
     except Exception as e:
