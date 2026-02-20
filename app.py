@@ -614,41 +614,49 @@ if st.session_state.df is not None and not st.session_state.review_started:
     st.markdown("#### 👥 Anwesende Teilnehmer")
     st.markdown("<small style='color:#666;'>Wählen Sie die Teilnehmer des Review-Meetings aus:</small>", unsafe_allow_html=True)
     
+    # Initialisiere temp state für Auswahl
+    if 'temp_attendees' not in st.session_state:
+        st.session_state.temp_attendees = st.session_state.selected_attendees.copy()
+    
     # Kürzel als Optionen (sortiert)
     if st.session_state.attendees_list:
         attendee_options = sorted(st.session_state.attendees_list.keys())
         
-        selected = st.multiselect(
-            "Teilnehmer auswählen",
+        # Pills für schnelle Auswahl (kein Auto-Rerun)
+        selected_pills = st.pills(
+            "Teilnehmer",
             options=attendee_options,
-            default=st.session_state.selected_attendees,
+            selection_mode="multi",
+            default=st.session_state.temp_attendees,
             label_visibility="collapsed",
-            help="Mehrfachauswahl möglich"
+            help="Klicken Sie um Teilnehmer hinzuzufügen/zu entfernen"
         )
-        st.session_state.selected_attendees = selected
+        st.session_state.temp_attendees = selected_pills if selected_pills else []
         
         # Zusätzliche Teilnehmer (freies Textfeld)
         additional = st.text_input(
             "Weitere Teilnehmer (optional)",
+            value=st.session_state.get('additional_attendees', ''),
             placeholder="z.B. 'Dr. Anna Müller (Gast), Prof. Thomas Weber'",
             help="Für Teilnehmer die nicht in der Liste sind"
         )
-        if additional.strip():
-            if 'additional_attendees' not in st.session_state:
-                st.session_state.additional_attendees = additional
-            else:
-                st.session_state.additional_attendees = additional
         
         # Zeige Vorschau
-        if selected or (additional and additional.strip()):
-            st.markdown("<small style='color:#666;'>**Anwesende:**</small>", unsafe_allow_html=True)
+        if st.session_state.temp_attendees or (additional and additional.strip()):
+            st.markdown("<small style='color:#666;'>**Vorschau:**</small>", unsafe_allow_html=True)
             all_attendees = []
-            for abbr in selected:
+            for abbr in st.session_state.temp_attendees:
                 full_name = st.session_state.attendees_list.get(abbr, abbr)
                 all_attendees.append(f"{abbr} ({full_name})")
             if additional and additional.strip():
                 all_attendees.append(additional)
             st.caption(", ".join(all_attendees))
+        
+        # Bestätigen-Button
+        if st.button("✓ Teilnehmer bestätigen", use_container_width=False):
+            st.session_state.selected_attendees = st.session_state.temp_attendees
+            st.session_state.additional_attendees = additional
+            st.success("✓ Teilnehmer gespeichert!")
     
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
     
