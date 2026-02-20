@@ -614,38 +614,33 @@ if st.session_state.df is not None and not st.session_state.review_started:
     st.markdown("#### 👥 Anwesende Teilnehmer")
     st.markdown("<small style='color:#666;'>Wählen Sie die Teilnehmer des Review-Meetings aus:</small>", unsafe_allow_html=True)
     
-    # Initialisiere temp state für Auswahl
-    if 'temp_attendees' not in st.session_state:
-        st.session_state.temp_attendees = st.session_state.selected_attendees.copy()
-    
     # Kürzel als Optionen (sortiert)
     if st.session_state.attendees_list:
         attendee_options = sorted(st.session_state.attendees_list.keys())
         
-        # Pills für schnelle Auswahl (kein Auto-Rerun)
+        # Pills für schnelle Auswahl
         selected_pills = st.pills(
             "Teilnehmer",
             options=attendee_options,
             selection_mode="multi",
-            default=st.session_state.temp_attendees,
             label_visibility="collapsed",
+            key="attendee_pills",
             help="Klicken Sie um Teilnehmer hinzuzufügen/zu entfernen"
         )
-        st.session_state.temp_attendees = selected_pills if selected_pills else []
         
         # Zusätzliche Teilnehmer (freies Textfeld)
         additional = st.text_input(
             "Weitere Teilnehmer (optional)",
             value=st.session_state.get('additional_attendees', ''),
             placeholder="z.B. 'Dr. Anna Müller (Gast), Prof. Thomas Weber'",
-            help="Für Teilnehmer die nicht in der Liste sind"
+            help="Für Teilnehmer die nicht in der Liste sind. Mehrere Teilnehmer mit Komma trennen."
         )
         
         # Zeige Vorschau
-        if st.session_state.temp_attendees or (additional and additional.strip()):
+        if selected_pills or (additional and additional.strip()):
             st.markdown("<small style='color:#666;'>**Vorschau:**</small>", unsafe_allow_html=True)
             all_attendees = []
-            for abbr in st.session_state.temp_attendees:
+            for abbr in (selected_pills or []):
                 full_name = st.session_state.attendees_list.get(abbr, abbr)
                 all_attendees.append(f"{abbr} ({full_name})")
             if additional and additional.strip():
@@ -656,7 +651,7 @@ if st.session_state.df is not None and not st.session_state.review_started:
         
         # Bestätigen-Button
         if st.button("✓ Teilnehmer bestätigen", use_container_width=False):
-            st.session_state.selected_attendees = st.session_state.temp_attendees
+            st.session_state.selected_attendees = selected_pills if selected_pills else []
             st.session_state.additional_attendees = additional
             st.success("✓ Teilnehmer gespeichert!")
     
