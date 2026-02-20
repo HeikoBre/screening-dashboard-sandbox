@@ -649,7 +649,9 @@ if st.session_state.df is not None and not st.session_state.review_started:
                 full_name = st.session_state.attendees_list.get(abbr, abbr)
                 all_attendees.append(f"{abbr} ({full_name})")
             if additional and additional.strip():
-                all_attendees.append(additional)
+                # Parse komma-getrennte Namen
+                additional_names = [name.strip() for name in additional.split(',') if name.strip()]
+                all_attendees.extend(additional_names)
             st.caption(", ".join(all_attendees))
         
         # Bestätigen-Button
@@ -686,9 +688,13 @@ def generate_csv():
         attendees_names = [st.session_state.attendees_list.get(abbr, abbr) for abbr in st.session_state.selected_attendees]
         attendees_str = "; ".join(attendees_names)
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-            attendees_str += "; " + st.session_state.additional_attendees
+            # Parse komma-getrennte zusätzliche Teilnehmer
+            additional_names = [name.strip() for name in st.session_state.additional_attendees.split(',') if name.strip()]
+            if additional_names:
+                attendees_str += "; " + "; ".join(additional_names)
     elif hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-        attendees_str = st.session_state.additional_attendees
+        additional_names = [name.strip() for name in st.session_state.additional_attendees.split(',') if name.strip()]
+        attendees_str = "; ".join(additional_names)
     
     export_df.insert(3, 'Anwesende_Teilnehmer', attendees_str)
     
@@ -961,11 +967,14 @@ def generate_pdf():
             full_name = st.session_state.attendees_list.get(abbr, abbr)
             attendees_list.append(full_name)
         
-        # Zusätzliche Teilnehmer
+        # Zusätzliche Teilnehmer (komma-getrennt parsen)
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-            attendees_list.append(st.session_state.additional_attendees)
+            additional_str = st.session_state.additional_attendees
+            # Split by comma and clean whitespace
+            additional_names = [name.strip() for name in additional_str.split(',') if name.strip()]
+            attendees_list.extend(additional_names)
         
-        # Ausgabe
+        # Ausgabe als Bullet Points
         for attendee in attendees_list:
             story.append(Paragraph(f"• {attendee}", styles['Normal']))
         
