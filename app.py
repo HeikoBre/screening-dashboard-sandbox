@@ -650,17 +650,29 @@ if st.session_state.df is not None and not st.session_state.review_started:
             st.caption(", ".join(all_attendees))
         
         # Bestätigen-Button
-        if st.button("✓ Teilnehmer bestätigen", use_container_width=False):
+        attendees_confirmed = st.session_state.get('attendees_confirmed', False)
+        
+        if st.button("✓ Teilnehmer bestätigen", use_container_width=False, disabled=attendees_confirmed):
             st.session_state.selected_attendees = selected_pills if selected_pills else []
             st.session_state.additional_attendees = additional
+            st.session_state.attendees_confirmed = True
             st.success("✓ Teilnehmer gespeichert!")
+        
+        if attendees_confirmed:
+            st.success("✓ Teilnehmer bestätigt")
     
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+    
+    # Start-Button nur wenn Teilnehmer bestätigt wurden
+    attendees_confirmed = st.session_state.get('attendees_confirmed', False)
+    
+    if not attendees_confirmed:
+        st.warning("⚠️ Bitte bestätigen Sie zuerst die Teilnehmerliste")
     
     # Start-Button
     col_l, col_btn, col_r = st.columns([2, 2, 2])
     with col_btn:
-        if st.button('▶ Bewertung starten', type='primary', use_container_width=True):
+        if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not attendees_confirmed):
             st.session_state.review_started = True
             st.rerun()
 # Funktion zum Generieren der CSV
@@ -1090,7 +1102,7 @@ def generate_pdf():
             ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
             ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
             ['Nein', f'{nat_nein} ({nat_nein_pct:.1f}%)', f'{stud_nein} ({stud_nein_pct:.1f}%)'],
-            ['Kann ich nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
+            ['Kann nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
             ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
             ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
         ]
