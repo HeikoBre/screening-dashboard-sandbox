@@ -468,10 +468,10 @@ if st.session_state.df is None:
             summary_data = []
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             for gene in st.session_state.genes:
-                nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
-                nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
-                stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-                stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
+                nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
+                nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
+                stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+                stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
                 
                 nat_data = df[nat_q_cols].stack().dropna()
                 n_nat = len(nat_data)
@@ -718,8 +718,8 @@ def generate_csv():
     
     df = st.session_state.df
     for gene in export_df['Gen']:
-        nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
-        stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+        nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
+        stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
         
         nat_data = df[nat_q_cols].stack().dropna()
         stud_data = df[stud_q_cols].stack().dropna()
@@ -1072,10 +1072,10 @@ def generate_pdf():
         story.append(Spacer(1, 6))
         
         # Daten sammeln
-        nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
-        nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
-        stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-        stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
+        nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
+        nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
+        stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+        stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
         
         nat_data = df[nat_q_cols].stack().dropna()
         stud_data = df[stud_q_cols].stack().dropna()
@@ -1484,10 +1484,10 @@ if st.session_state.df is not None and st.session_state.review_started:
             """
             st.components.v1.html(nav_html, height=60)
             
-            nat_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' not in col]
-            nat_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'nationalen' in col and '[Kommentar]' in col]
-            stud_q_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-            stud_kom_cols = [col for col in df.columns if f'Gen: {gene}' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
+            nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
+            nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
+            stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
+            stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
 
             options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
             
