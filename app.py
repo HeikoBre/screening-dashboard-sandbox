@@ -1437,25 +1437,25 @@ if st.session_state.df is not None and st.session_state.review_started:
                         border-left: 4px solid #4CAF50;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                         font-family: "Source Sans Pro", "Segoe UI", Arial, sans-serif;'>
-                <div style='display: flex; align-items: center; gap: 10px; white-space: nowrap;'>
+                <div style='display: flex; align-items: center; gap: 10px;'>
                     <button id="btn-prev" style='
                         background: none; border: 1px solid #c8e6c9; border-radius: 5px;
                         padding: 3px 9px; cursor: pointer; color: #4CAF50; font-size: 12px;
                         line-height: 1; flex-shrink: 0;'>&#9664;</button>
                     <div style='background: #4CAF50; color: white; padding: 4px 10px; 
                                 border-radius: 5px; font-weight: 700; font-size: 13px;
-                                font-style: italic; flex-shrink: 0;'>
+                                font-style: italic; flex-shrink: 0; white-space: nowrap;'>
                         {gene}
                     </div>
                     <a href='https://omim.org/search?index=entry&search={gene}&filter=gene' 
                        target='_blank' 
-                       style='flex: 1; color: #666; font-size: 13px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px;'
+                       style='flex: 1; color: #666; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.4;'
                        onmouseover="this.style.textDecoration='underline'"
                        onmouseout="this.style.textDecoration='none'">
-                       <span style='overflow: hidden; text-overflow: ellipsis;'>{disease_display}</span>
+                       <span style='flex: 1; min-width: 200px;'>{disease_display}</span>
                        {badge_html}
                     </a>
-                    <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0;'>
+                    <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0; white-space: nowrap;'>
                         Gen {tab_idx + 1} von {len(st.session_state.genes)}
                     </div>
                     <button id="btn-next" style='
