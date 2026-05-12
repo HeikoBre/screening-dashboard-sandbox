@@ -481,9 +481,17 @@ if st.session_state.df is None:
                 nat_ja = (nat_data == 'Ja').sum() / n_nat * 100 if n_nat > 0 else 0
                 stud_ja = (stud_data == 'Ja').sum() / n_stud * 100 if n_stud > 0 else 0
                 
-                # Sammle Kommentare
-                nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-                stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+                # Sammle Kommentare - gleich beim Einlesen Zeilenumbrüche bereinigen
+                nat_comments = [
+                    str(c).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').strip()
+                    for c in df[nat_kom_cols].stack().dropna()
+                    if str(c).strip()
+                ]
+                stud_comments = [
+                    str(c).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').strip()
+                    for c in df[stud_kom_cols].stack().dropna()
+                    if str(c).strip()
+                ]
                 
                 summary_data.append({
                     'Gen': gene,
@@ -675,11 +683,33 @@ if st.session_state.df is not None and not st.session_state.review_started:
         if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not attendees_confirmed):
             st.session_state.review_started = True
             st.rerun()
+
+
+def _clean_str(value):
+    """
+    Bereinigt einen String-Wert für den CSV-Export:
+    - Entfernt eingebettete Zeilenumbrüche (LimeSurvey hängt an Freitextfelder automatisch \\n an)
+    - Entfernt führende/nachfolgende Leerzeichen
+    - Wandelt pandas NA/None in leeren String um
+    """
+    if pd.isna(value):
+        return ''
+    s = str(value)
+    if s == 'nan':
+        return ''
+    s = s.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
+    return s.strip()
+
+
 # Funktion zum Generieren der CSV
 def generate_csv():
     """
-    Generiert CSV-Export mit vollständiger Delphi-Prozess Dokumentation
-    Struktur ermöglicht Nachvollziehbarkeit von Umfrage-Ergebnis zu finaler Entscheidung
+    Generiert CSV-Export mit vollständiger Delphi-Prozess Dokumentation.
+    Struktur ermöglicht Nachvollziehbarkeit von Umfrage-Ergebnis zu finaler Entscheidung.
+
+    Fix: LimeSurvey hängt an Freitextantworten automatisch \\n an. Diese eingebetteten
+    Zeilenumbrüche werden hier in ALLEN String-Spalten entfernt, damit Excel/Numbers
+    die CSV korrekt als eine Zeile pro Gen einlesen.
     """
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
@@ -695,7 +725,6 @@ def generate_csv():
         attendees_names = [st.session_state.attendees_list.get(abbr, abbr) for abbr in st.session_state.selected_attendees]
         attendees_str = "; ".join(attendees_names)
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-            # Parse komma-getrennte zusätzliche Teilnehmer
             additional_names = [name.strip() for name in st.session_state.additional_attendees.split(',') if name.strip()]
             if additional_names:
                 attendees_str += "; " + "; ".join(additional_names)
@@ -706,8 +735,6 @@ def generate_csv():
     export_df.insert(3, 'Anwesende_Teilnehmer', attendees_str)
     
     # === UMFRAGE-ERGEBNISSE (Delphi Runde 1) ===
-    # Bereits vorhanden: National_Ja_pct, National_n, Studie_Ja_pct, Studie_n
-    
     # Absolute Zahlen für Transparenz
     national_ja = []
     national_nein = []
@@ -765,7 +792,6 @@ def generate_csv():
     export_df['Expertengruppe_Entscheidung'] = decision_clean
     
     # === ABWEICHUNGS-ANALYSE ===
-    # Zeigt ob Expertengruppe von Umfrage-Empfehlung abweicht
     abweichung = []
     abweichung_typ = []
     
@@ -804,19 +830,19 @@ def generate_csv():
     column_order = [
         # Metadaten
         'Export_Datum', 'Export_Zeit', 'Gesamt_Responses',
-        
+
         # Gen-Information
         'Gen', 'Erkrankung',
-        
+
         # Umfrage-Ergebnisse National
         'National_n', 'National_Ja_n', 'National_Nein_n', 'National_NA_n', 'National_Ja_pct', 'National_80',
-        
+
         # Umfrage-Ergebnisse Studie
         'Studie_n', 'Studie_Ja_n', 'Studie_Nein_n', 'Studie_NA_n', 'Studie_Ja_pct',
-        
+
         # Umfrage-Kommentare
         'Kommentare_National', 'Kommentare_Studie',
-        
+
         # Delphi-Prozess
         'Umfrage_Empfehlung',
         'Expertengruppe_Entscheidung',
@@ -826,9 +852,23 @@ def generate_csv():
     ]
     
     export_df = export_df[column_order]
-    
+
+    # =========================================================
+    # FIX: Zeilenumbrüche in ALLEN String-Spalten bereinigen
+    #
+    # LimeSurvey hängt an Freitextantworten automatisch \n an.
+    # Auch manuell eingegebene Notizen können \n enthalten.
+    # pandas schreibt diese RFC-4180-konform in Anführungszeichen,
+    # aber Excel/Numbers brechen trotzdem um.
+    # Lösung: \r\n, \r und \n in Leerzeichen umwandeln.
+    # _clean_str() behandelt zusätzlich None/NaN → leerer String.
+    # =========================================================
+    for col in export_df.select_dtypes(include='object').columns:
+        export_df[col] = export_df[col].map(_clean_str)
+
     export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
     return csv_buffer.getvalue().encode('utf-8-sig')
+
 
 # Funktion zum Generieren des PDFs
 def generate_pdf():
@@ -866,12 +906,11 @@ def generate_pdf():
             # Links: Datum
             self.drawString(0.75*inch, 0.35*inch, f"Erstellt am: {self.creation_date}")
             
-            # Mitte: Seitenzahl - mit mehr Platz für zweistellige Zahlen
+            # Mitte: Seitenzahl
             page_text = f"Seite {page_num} von {page_count}"
             page_text_width = self.stringWidth(page_text, 'Helvetica', 8)
             center_x = (A4[0] - page_text_width) / 2
-            # Stelle sicher dass genug Platz für den Text ist
-            if center_x < 0.75*inch + 100:  # Mindestabstand zum linken Text
+            if center_x < 0.75*inch + 100:
                 center_x = 0.75*inch + 100
             self.drawString(center_x, 0.35*inch, page_text)
             
@@ -969,19 +1008,15 @@ def generate_pdf():
         story.append(Paragraph("<b>Anwesende:</b>", styles['Heading3']))
         attendees_list = []
         
-        # Reguläre Teilnehmer aus Liste
         for abbr in st.session_state.selected_attendees:
             full_name = st.session_state.attendees_list.get(abbr, abbr)
             attendees_list.append(full_name)
         
-        # Zusätzliche Teilnehmer (komma-getrennt parsen)
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
             additional_str = st.session_state.additional_attendees
-            # Split by comma and clean whitespace
             additional_names = [name.strip() for name in additional_str.split(',') if name.strip()]
             attendees_list.extend(additional_names)
         
-        # Ausgabe als Bullet Points
         for attendee in attendees_list:
             story.append(Paragraph(f"• {attendee}", styles['Normal']))
         
@@ -993,17 +1028,12 @@ def generate_pdf():
     story.append(Paragraph("Inhaltsverzeichnis", title_style))
     story.append(Spacer(1, 12))
     
-    # Erstelle TOC Einträge - wir berechnen die Seitenzahlen
-    # Seite 1 = Titel, Seite 2 = TOC, ab Seite 3 = Gene
     for idx, gene in enumerate(st.session_state.genes):
         disease = st.session_state.gene_dict.get(gene, '')
         page_num = idx + 3  # Start bei Seite 3
         
-        # Erstelle TOC Zeile
         toc_text = f'<b><i>{gene}</i></b> ({disease[:1].upper() + disease[1:] if disease else ""})'
         
-        # Tabelle für TOC-Zeile (Text links, Seitenzahl rechts)
-        # Verwende Paragraph nur für den Gen-Namen, nicht für die Seitenzahl
         toc_data = [[Paragraph(toc_text, toc_style), str(page_num)]]
         toc_table = Table(toc_data, colWidths=[5.5*inch, 0.5*inch])
         toc_table.setStyle(TableStyle([
@@ -1027,10 +1057,8 @@ def generate_pdf():
         # Gen-Header mit Badge rechts oben
         overlap_group = st.session_state.nbs_overlap.get(gene, None)
         
-        # Erstelle Header-Tabelle für Gen-Name (links) und Badge (rechts)
         header_left = Paragraph(f"<b><i>{gene}</i></b>", gene_style)
         
-        # Badge als kleine Tabelle mit abgerundeten Ecken
         if overlap_group == "NBS":
             badge_text = "✓ Im NBS"
             badge_color = colors.HexColor('#2196F3')
@@ -1127,7 +1155,6 @@ def generate_pdf():
         # === SEKTION 1: UMFRAGEERGEBNISSE ===
         story.append(Paragraph("<b>Ergebnis der Umfrage:</b>", section_style))
         
-        # Zeige automatische Bewertung basierend auf Umfrage - KÜRZERER TEXT
         if nat_ja_pct >= 80:
             result_color = colors.HexColor('#E8F5E9')
             text_color = colors.HexColor('#2E7D32')
@@ -1156,11 +1183,20 @@ def generate_pdf():
         story.append(result_table)
         story.append(Spacer(1, 10))
         
-        # Kommentare aus Umfrage direkt nach dem Ergebnis
+        # Kommentare aus Umfrage
         story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
         
-        nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-        stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
+        # Kommentare bereinigen (Zeilenumbrüche entfernen)
+        nat_comments = [
+            _clean_str(c)
+            for c in df[nat_kom_cols].stack().dropna()
+            if _clean_str(c)
+        ]
+        stud_comments = [
+            _clean_str(c)
+            for c in df[stud_kom_cols].stack().dropna()
+            if _clean_str(c)
+        ]
 
         def make_comment_table(label, comment_list, bg_color, label_color):
             """Hilfsfunktion: Erstellt eine farbig hinterlegte Kommentar-Box"""
@@ -1248,7 +1284,7 @@ def generate_pdf():
         
         story.append(Spacer(1, 10))
         
-        # Zusätzliche Notizen — ebenfalls farbig hinterlegt
+        # Zusätzliche Notizen
         reviewer_comment = st.session_state.user_comments.get(gene, '')
         if reviewer_comment:
             story.append(Paragraph("<b>Zusätzliche Notizen:</b>", section_style))
@@ -1280,7 +1316,6 @@ def generate_pdf():
     # === LETZTE SEITE: DOKUMENTATIONSINFORMATIONEN ===
     story.append(PageBreak())
     
-    # Titel
     story.append(Spacer(1, 50))
     info_title_style = ParagraphStyle(
         'InfoTitle',
@@ -1292,7 +1327,6 @@ def generate_pdf():
     )
     story.append(Paragraph("Dokumentationsinformationen", info_title_style))
     
-    # Versions- und Repository-Informationen
     info_style = ParagraphStyle(
         'InfoText',
         parent=styles['Normal'],
@@ -1323,7 +1357,6 @@ def generate_pdf():
     ))
     story.append(Spacer(1, 30))
     
-    # Technische Details in einer Box
     tech_data = [[
         "Technische Details:\n"
         "• Python-basierte Streamlit-Anwendung\n"
@@ -1352,30 +1385,27 @@ def generate_pdf():
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
 
+
 # Sidebar Export
 if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.markdown("### 📥 Export")
     
-    # Bewertungsfortschritt in Sidebar
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
     total_genes = len(st.session_state.genes)
     
     st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
     
-    # Zeige welche Gene bewertet sind
     decided_genes = {gene: decision for gene, decision in st.session_state.gene_decisions.items() 
                      if decision and decision != 'Noch nicht bewertet'}
     
     if decided_genes:
         with st.sidebar.expander("📋 Bewertete Gene", expanded=False):
             for gene, decision in decided_genes.items():
-                # Emoji extrahieren
                 emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
                 st.caption(f"{emoji} *{gene}*")
     
     today = datetime.now().strftime("%Y%m%d")
     
-    # CSV Download
     st.sidebar.download_button(
         label=f'📊 CSV Zusammenfassung',
         data=generate_csv(),
@@ -1385,7 +1415,6 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
         use_container_width=True
     )
     
-    # PDF Download
     st.sidebar.download_button(
         label=f'📄 PDF Dokumentation',
         data=generate_pdf(),
@@ -1398,13 +1427,13 @@ if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
     
-    # Vorschau mit Kommentar-Indikator
     preview_df = st.session_state.summary_df[['Gen', 'Erkrankung', 'National_Ja_pct', 'Studie_Ja_pct', 'National_80']].copy()
     preview_df['💬'] = preview_df['Gen'].apply(
         lambda gene: '✓' if st.session_state.user_comments.get(gene, '').strip() else ''
     )
     preview_df.index = range(1, len(preview_df) + 1)
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
+
 
 # Tabs (Visualisierung mit erweiterter Anzeige)
 if st.session_state.df is not None and st.session_state.review_started:
@@ -1417,7 +1446,6 @@ if st.session_state.df is not None and st.session_state.review_started:
             gene = st.session_state.genes[tab_idx]
             disease = st.session_state.gene_dict.get(gene, '')
             
-            # Visueller Header mit Hervorhebung + JS-Navigation via components
             gene_escaped = gene.replace("'", "\\'")
             disease_display = disease[:1].upper() + disease[1:] if disease else ''
             disease_escaped = disease_display.replace("'", "\\'")
@@ -1510,7 +1538,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                     nat_data = df[nat_q_cols].stack().dropna()
                     n_total = len(nat_data)
                     
-                    # Pie Chart für National
                     colors_chart = ['#ACF3AE', '#C43D5A', '#DDDDDD']
                     labels = ['Ja', 'Nein', 'NA']
                     values = [
@@ -1535,7 +1562,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                     )
                     st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
                     
-                    # Erweiterte Anzeige
                     ja_count = (nat_data == 'Ja').sum()
                     nein_count = (nat_data == 'Nein').sum()
                     weiss_nicht_count = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
@@ -1551,7 +1577,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                     stud_data = df[stud_q_cols].stack().dropna()
                     n_total_stud = len(stud_data)
                     
-                    # Pie Chart für Studie
                     values_stud = [
                         (stud_data == 'Ja').sum(),
                         (stud_data == 'Nein').sum(),
@@ -1574,7 +1599,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                     )
                     st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
                     
-                    # Erweiterte Anzeige
                     ja_count_stud = (stud_data == 'Ja').sum()
                     nein_count_stud = (stud_data == 'Nein').sum()
                     weiss_nicht_count_stud = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
@@ -1586,7 +1610,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                         Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}
                     </div>""", unsafe_allow_html=True)
 
-                # Legende direkt unter den Abbildungen
+                # Legende
                 st.markdown("""
                 <div style='background-color: transparent; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border: 1px solid #e0e0e0;'>
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
@@ -1620,7 +1644,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                         color = "#999"
                         tooltip = f"{gene} nicht in {study_name}"
                     
-                    # Escape für data-attribute
                     tooltip_escaped = tooltip.replace('"', '&quot;').replace("'", '&#39;')
                     
                     study_html_parts.append(
@@ -1671,7 +1694,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                 <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
                 """, unsafe_allow_html=True)
                 
-                # Dropdown für Empfehlung
                 decision_options = [
                     'Noch nicht bewertet',
                     '🟢 Aufnahme in nationales gNBS',
@@ -1690,12 +1712,10 @@ if st.session_state.df is not None and st.session_state.review_started:
                     label_visibility='collapsed'
                 )
                 
-                # Speichere Entscheidung automatisch
                 st.session_state.gene_decisions[gene] = decision
                 
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
                 
-                # Kommentarfeld - immer sichtbar, aber optional
                 st.markdown("<h4 style='margin-top: 0px; margin-bottom: 8px; font-size: 13px; color: #666;'>Zusätzliche Notizen (optional)</h4>", unsafe_allow_html=True)
                 
                 current_comment = st.session_state.user_comments.get(gene, '')
@@ -1720,7 +1740,6 @@ if st.session_state.df is not None and st.session_state.review_started:
                 if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
                     st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
                 
-                # Zeige aktuelle Bewertung
                 if decision != 'Noch nicht bewertet':
                     st.markdown(f"""
                     <div style='margin-top: 15px; padding: 10px; background-color: #f0f7f0; border-radius: 6px; border-left: 3px solid #4CAF50;'>
@@ -1731,7 +1750,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                 
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Kommentare mit Expander (standardmäßig ausgeklappt)
+            # Kommentare mit Expander
             st.markdown("<h4 style='font-size: 17px; margin-top: 20px;'>Kommentare aus Umfrage</h4>", unsafe_allow_html=True)
             nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
             stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
