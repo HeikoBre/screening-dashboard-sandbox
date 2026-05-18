@@ -79,9 +79,11 @@ Strukturiert für wissenschaftliche Publikationen:
 
 ### Voraussetzungen
 - Python 3.8 oder höher
-- pip
+- pip oder Conda/Miniconda
 
-### Schritt-für-Schritt Installation
+### Option A: Virtuelle Umgebung (venv)
+
+Empfohlen wenn **kein** Conda/Miniconda installiert ist.
 
 1. **Repository klonen:**
 ```bash
@@ -89,10 +91,10 @@ git clone https://github.com/HeikoBre/screening-dashboard-sandbox.git
 cd screening-dashboard-sandbox
 ```
 
-2. **Virtuelle Umgebung erstellen (empfohlen):**
+2. **Virtuelle Umgebung erstellen und aktivieren:**
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
+source venv/bin/activate  # macOS/Linux
 venv\Scripts\activate     # Windows
 ```
 
@@ -106,13 +108,45 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+> ⚠️ **Wichtig:** Die virtuelle Umgebung muss in jedem neuen Terminalfenster erneut aktiviert werden (`source venv/bin/activate`). Das `(venv)` am Anfang der Kommandozeile bestätigt, dass sie aktiv ist.
+
+---
+
+### Option B: Conda/Miniconda (empfohlen bei bestehender Conda-Installation)
+
+Wenn Conda oder Miniconda bereits installiert ist, **muss** die Installation über Conda erfolgen, da sonst `streamlit` aus der Conda-Basisumgebung startet und die venv-Pakete nicht findet.
+
+1. **Repository klonen:**
+```bash
+git clone https://github.com/HeikoBre/screening-dashboard-sandbox.git
+cd screening-dashboard-sandbox
+```
+
+2. **Neue Conda-Umgebung erstellen und aktivieren:**
+```bash
+conda create -n gnbs python=3.11
+conda activate gnbs
+```
+
+3. **Abhängigkeiten installieren:**
+```bash
+pip install -r requirements.txt
+```
+
+4. **App starten:**
+```bash
+streamlit run app.py
+```
+
+> ⚠️ **Wichtig:** Die Conda-Umgebung muss in jedem neuen Terminalfenster erneut aktiviert werden (`conda activate gnbs`). Das `(gnbs)` am Anfang der Kommandozeile bestätigt, dass sie aktiv ist.
+
+---
+
 Die App öffnet sich automatisch im Browser unter `http://localhost:8501`
 
 ## 📖 Verwendung
 
 ### 1. CSV hochladen
-
-![CSV Upload](docs/screenshots/01_upload.png)
 
 1. Klicken Sie auf "CSV hochladen"
 2. Wählen Sie Ihren LimeSurvey-Export aus
@@ -124,8 +158,6 @@ Die App öffnet sich automatisch im Browser unter `http://localhost:8501`
 - Unterscheidung zwischen "nationalen" und "wissenschaftlicher" Studie
 
 ### 2. Gene bewerten
-
-![Gen Bewertung](docs/screenshots/02_bewertung.png)
 
 **Für jedes Gen:**
 
@@ -148,16 +180,11 @@ Die App öffnet sich automatisch im Browser unter `http://localhost:8501`
 
 ### 3. Fortschritt verfolgen
 
-![Fortschritt](docs/screenshots/03_fortschritt.png)
-
 **Sidebar zeigt:**
-- Fortschrittsbalken (bewertete Gene)
 - Anzahl Gene mit Notizen
 - Liste der bewerteten Gene (aufklappbar)
 
 ### 4. Exportieren
-
-![Export](docs/screenshots/04_export.png)
 
 **PDF-Dokumentation:**
 - Vollständiger Bericht für Archivierung
@@ -208,7 +235,7 @@ Der CSV-Export zeigt explizit:
 ├─ 📑 Seite 2: Inhaltsverzeichnis
 │   └─ Alle Gene mit Seitenzahlen
 │
-├─ 📑 Seite 3-27: Gen-Seiten (eine pro Gen)
+├─ 📑 Seite 3+: Gen-Seiten (eine pro Gen)
 │   ├─ Statistik-Tabelle
 │   ├─ 📊 Umfrage-Ergebnis
 │   ├─ 💬 Kommentare aus Umfrage
@@ -227,7 +254,7 @@ Der CSV-Export zeigt explizit:
 | Kategorie | Spalten | Beschreibung |
 |-----------|---------|--------------|
 | **Metadaten** | Export_Datum, Export_Zeit, Gesamt_Responses | Wann und mit wie vielen Teilnehmern |
-| **Gen-Info** | Gen, Erkrankung | Gen-Name (kursiv) und Krankheit |
+| **Gen-Info** | Gen, Erkrankung | Gen-Name und Krankheit |
 | **Umfrage National** | National_n, National_Ja_n, National_Nein_n, National_NA_n, National_Ja_pct, National_80 | Vollständige Statistik |
 | **Umfrage Studie** | Studie_n, Studie_Ja_n, Studie_Nein_n, Studie_NA_n, Studie_Ja_pct | Vollständige Statistik |
 | **Kommentare** | Kommentare_National, Kommentare_Studie | Qualitative Daten |
@@ -261,13 +288,25 @@ Der CSV-Export zeigt explizit:
 
 ## 🐛 Troubleshooting
 
+### Problem: `ModuleNotFoundError: No module named 'reportlab'` (oder ähnlich)
+
+Wenn Conda/Miniconda installiert ist, startet `streamlit` standardmäßig aus der Conda-Basisumgebung — unabhängig davon ob eine venv aktiv ist. In diesem Fall hilft nur die Conda-Installation (siehe [Option B](#option-b-condaminiconda-empfohlen-bei-bestehender-conda-installation)).
+
+Schnell-Fix:
+```bash
+conda create -n gnbs python=3.11
+conda activate gnbs
+pip install -r requirements.txt
+streamlit run app.py
+```
+
 ### Problem: Gene werden nicht erkannt
 **Lösung:** Prüfen Sie die Spaltennamen in Ihrer CSV:
 - Müssen enthalten: `Gen: [NAME]` und `Erkrankung: [KRANKHEIT]`
 - Achten Sie auf "nationalen" vs "nationale" (Schreibweise)
 
 ### Problem: PDF-Generierung schlägt fehl
-**Lösung:** 
+**Lösung:**
 - Prüfen Sie freien Speicherplatz
 - Große Kommentare können Probleme verursachen
 - Probieren Sie zuerst den CSV-Export
@@ -322,4 +361,4 @@ Bei Fragen oder Problemen:
 
 **Hinweis:** Diese App wurde für wissenschaftliche Zwecke entwickelt. Für medizinische Entscheidungen konsultieren Sie bitte Fachpersonal.
 
-*Zuletzt aktualisiert: Februar 2026*
+*Zuletzt aktualisiert: Mai 2026*
