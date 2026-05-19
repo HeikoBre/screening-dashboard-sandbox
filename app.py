@@ -228,6 +228,8 @@ if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
 if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
 if 'attendees_list' not in st.session_state: st.session_state.attendees_list = None
 if 'selected_attendees' not in st.session_state: st.session_state.selected_attendees = []
+if 'disease_groups_list' not in st.session_state: st.session_state.disease_groups_list = None
+if 'selected_disease_group' not in st.session_state: st.session_state.selected_disease_group = None
 
 # Lade Namen/Kürzel beim ersten Start
 if st.session_state.attendees_list is None:
@@ -240,6 +242,23 @@ if st.session_state.attendees_list is None:
         st.session_state.attendees_list = dict(zip(names_df['Name'], names_df['Kürzel']))
     except Exception as e:
         st.session_state.attendees_list = {}
+
+# Lade Erkrankungsgruppen beim ersten Start
+if st.session_state.disease_groups_list is None:
+    try:
+        import urllib.request
+        groups_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/disease_groups.csv"
+        response = urllib.request.urlopen(groups_url)
+        groups_content = response.read().decode('utf-8-sig')
+        groups_df = pd.read_csv(io.StringIO(groups_content))
+        st.session_state.disease_groups_list = groups_df['Gruppe'].dropna().tolist()
+    except Exception as e:
+        # Fallback-Liste falls CSV nicht erreichbar
+        st.session_state.disease_groups_list = [
+            'Metabolisch', 'Renal', 'Kardiovaskulär', 'Hämatologisch',
+            'Immunologisch', 'Neurologisch', 'Endokrinologisch',
+            'Muskuloskelettal', 'Sonstige'
+        ]
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
@@ -590,14 +609,49 @@ if st.session_state.df is not None and not st.session_state.review_started:
 
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
 
+    # === ERKRANKUNGSGRUPPE ===
+    st.markdown("#### 🏷️ Erkrankungsgruppe dieser Session")
+    st.markdown("<small style='color:#666;'>Wählen Sie die Erkrankungsgruppe, der alle Gen-Erkrankungs-Kombinationen dieser Session zugeordnet werden:</small>", unsafe_allow_html=True)
+
+    group_options = st.session_state.disease_groups_list or []
+    group_confirmed = st.session_state.get('group_confirmed', False)
+
+    selected_group = st.selectbox(
+        "Erkrankungsgruppe",
+        options=["– bitte auswählen –"] + group_options,
+        index=0 if not st.session_state.selected_disease_group
+              else (["– bitte auswählen –"] + group_options).index(st.session_state.selected_disease_group)
+                   if st.session_state.selected_disease_group in group_options else 0,
+        label_visibility="collapsed",
+        disabled=group_confirmed,
+        key="group_select"
+    )
+
+    if st.button("✓ Erkrankungsgruppe bestätigen", use_container_width=False, disabled=group_confirmed):
+        if selected_group == "– bitte auswählen –":
+            st.warning("⚠️ Bitte wählen Sie eine Erkrankungsgruppe aus.")
+        else:
+            st.session_state.selected_disease_group = selected_group
+            st.session_state.group_confirmed = True
+            st.success(f"✓ Erkrankungsgruppe gespeichert: {selected_group}")
+
+    if group_confirmed:
+        st.success(f"✓ Erkrankungsgruppe bestätigt: **{st.session_state.selected_disease_group}**")
+
+    st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+
     attendees_confirmed = st.session_state.get('attendees_confirmed', False)
+    group_confirmed = st.session_state.get('group_confirmed', False)
+    session_ready = attendees_confirmed and group_confirmed
 
     if not attendees_confirmed:
         st.warning("⚠️ Bitte bestätigen Sie zuerst die Teilnehmerliste")
+    if not group_confirmed:
+        st.warning("⚠️ Bitte bestätigen Sie die Erkrankungsgruppe")
 
     col_l, col_btn, col_r = st.columns([2, 2, 2])
     with col_btn:
-        if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not attendees_confirmed):
+        if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not session_ready):
             st.session_state.review_started = True
             st.rerun()
 
@@ -734,10 +788,13 @@ def generate_csv():
 
     export_df['Expertengruppe_Notizen'] = reviewer_comments
 
+    # === ERKRANKUNGSGRUPPE ===
+    export_df['Erkrankungsgruppe'] = st.session_state.get('selected_disease_group', '')
+
     # === SPALTEN-REIHENFOLGE ===
     column_order = [
         'Export_Datum', 'Export_Zeit', 'Gesamt_Responses',
-        'Gen', 'Erkrankung',
+        'Gen', 'Erkrankung', 'Erkrankungsgruppe',
         'National_n', 'National_Ja_n', 'National_Nein_n', 'National_NA_n', 'National_Ja_pct', 'National_80',
         'Studie_n', 'Studie_Ja_n', 'Studie_Nein_n', 'Studie_NA_n', 'Studie_Ja_pct',
         'Kommentare_National', 'Kommentare_Studie',
@@ -853,6 +910,12 @@ def generate_pdf():
     story.append(Spacer(1, 12))
     story.append(Paragraph(f"Gesamtanzahl Responses: {st.session_state.total_responses}", styles['Normal']))
     story.append(Paragraph(f"Anzahl Gene: {len(st.session_state.genes)}", styles['Normal']))
+
+    # Erkrankungsgruppe auf Titelseite
+    disease_group = st.session_state.get('selected_disease_group', '')
+    if disease_group:
+        story.append(Paragraph(f"Erkrankungsgruppe: <b>{disease_group}</b>", styles['Normal']))
+
     story.append(Spacer(1, 20))
 
     if st.session_state.selected_attendees or (hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees):
