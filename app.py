@@ -866,7 +866,7 @@ def generate_csv():
     for col in export_df.select_dtypes(include='object').columns:
         export_df[col] = export_df[col].map(_clean_str)
 
-    export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+    export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig', quoting=1)
     return csv_buffer.getvalue().encode('utf-8-sig')
 
 
