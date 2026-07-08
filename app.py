@@ -22,45 +22,31 @@ APP_VERSION = "1.0.0"  # Fallback-Version
 def get_app_version():
     """Versucht die App-Version aus verschiedenen Quellen zu ermitteln"""
     try:
-        # Versuch 1: Git Tag auslesen (wenn lokal geklont)
         result = subprocess.run(
             ['git', 'describe', '--tags', '--abbrev=0'],
-            capture_output=True,
-            text=True,
-            timeout=2
+            capture_output=True, text=True, timeout=2
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except:
         pass
-    
     try:
-        # Versuch 2: Git Commit Hash (kurz) + Branch
         result = subprocess.run(
             ['git', 'rev-parse', '--short', 'HEAD'],
-            capture_output=True,
-            text=True,
-            timeout=2
+            capture_output=True, text=True, timeout=2
         )
         if result.returncode == 0 and result.stdout.strip():
             commit_hash = result.stdout.strip()
-            
-            # Branch Name
             branch_result = subprocess.run(
                 ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-                capture_output=True,
-                text=True,
-                timeout=2
+                capture_output=True, text=True, timeout=2
             )
             if branch_result.returncode == 0 and branch_result.stdout.strip():
                 branch = branch_result.stdout.strip()
                 return f"{APP_VERSION}-{branch}-{commit_hash}"
-            
             return f"{APP_VERSION}-{commit_hash}"
     except:
         pass
-    
-    # Versuch 3: VERSION Datei lesen (falls vorhanden)
     try:
         version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
         if os.path.exists(version_file):
@@ -68,14 +54,165 @@ def get_app_version():
                 return f.read().strip()
     except:
         pass
-    
-    # Fallback
     return APP_VERSION
+
+
+# ---------------------------------------------------------------------------
+# PATCH: Hilfsfunktionen für das neue (gene, disease) Datenmodell
+# ---------------------------------------------------------------------------
+
+def extract_gene_disease_from_col(col):
+    """
+    Extrahiert (gene, disease) aus einem LimeSurvey-Spaltenheader.
+    Gibt (None, None) zurück wenn das Format nicht erkannt wird.
+    """
+    if 'Gen:' not in col or 'Erkrankung:' not in col:
+        return None, None
+
+    gene_start = col.find('Gen:') + 4
+    while gene_start < len(col) and col[gene_start] in ' \xa0\t':
+        gene_start += 1
+    gene_end = col.find('Erkrankung:', gene_start)
+    if gene_end == -1:
+        return None, None
+    gene = col[gene_start:gene_end].strip(' \xa0\t')
+
+    disease_start = col.find('Erkrankung:') + 11
+    while disease_start < len(col) and col[disease_start] in ' \xa0\t':
+        disease_start += 1
+    disease_end = len(col)
+    for marker in [' [', '  ']:
+        pos = col.find(marker, disease_start)
+        if pos != -1 and pos < disease_end:
+            disease_end = pos
+    disease = col[disease_start:disease_end].strip(' \xa0\t')
+    return gene, disease
+
+
+def genes_compatible(g1, g2):
+    """
+    True wenn zwei Gennamen als identisch gewertet werden sollen.
+    Behandelt den Fall dass LimeSurvey in national vs. wissenschaftlich
+    leicht abweichende Schreibweisen hat (z.B. BCL11 vs BCL11B, CD79A vs CD79).
+    Beide Richtungen werden geprüft (Prefix-Match).
+    """
+    if g1 == g2:
+        return True
+    longer, shorter = (g1, g2) if len(g1) > len(g2) else (g2, g1)
+    return longer.startswith(shorter)
+
+
+def build_gene_col_index(df):
+    """
+    PATCH: Zentrales Parsing der Spalten.
+
+    Baut einen Index der Form:
+        gene_col_index[(gene, disease)] = {
+            'nat_q':   [col, ...],   # nationale Frage-Spalten
+            'nat_kom': [col, ...],   # nationale Kommentar-Spalten
+            'wiss_q':  [col, ...],   # wissenschaftl. Frage-Spalten
+            'wiss_kom':[col, ...],   # wissenschaftl. Kommentar-Spalten
+        }
+
+    Der Schlüssel ist immer der Genname + Erkrankung aus den NATIONALEN Spalten.
+    Wissenschaftliche Spalten werden per genes_compatible() + Erkrankungsname
+    zugeordnet (robust gegenüber BCL11/BCL11B- und CD79A/CD79-Tippfehlern).
+
+    Gibt zurück:
+        gene_col_index  – dict wie oben beschrieben
+        gene_pairs      – geordnete Liste von (gene, disease) Tupeln
+        gene_display    – dict (gene, disease) -> disease string (für Anzeige)
+    """
+    # Schritt 1: nationale Spalten einlesen
+    nat_entries = {}   # (gene, disease) -> {'q': col, 'kom': col}
+    nat_order = []     # Reihenfolge beibehalten
+
+    for col in df.columns:
+        if 'nationalen' not in col:
+            continue
+        gene, disease = extract_gene_disease_from_col(col)
+        if not gene:
+            continue
+        key = (gene, disease)
+        if key not in nat_entries:
+            nat_entries[key] = {'q': None, 'kom': None}
+            nat_order.append(key)
+        if '[Kommentar]' in col:
+            nat_entries[key]['kom'] = col
+        else:
+            nat_entries[key]['q'] = col
+
+    # Schritt 2: wissenschaftliche Spalten einlesen
+    wiss_raw = {}   # (gene_wiss, disease_wiss) -> {'q': col, 'kom': col}
+    for col in df.columns:
+        if 'wissenschaftlicher' not in col:
+            continue
+        gene, disease = extract_gene_disease_from_col(col)
+        if not gene:
+            continue
+        key = (gene, disease)
+        if key not in wiss_raw:
+            wiss_raw[key] = {'q': None, 'kom': None}
+        if '[Kommentar]' in col:
+            wiss_raw[key]['kom'] = col
+        else:
+            wiss_raw[key]['q'] = col
+
+    # Schritt 3: nationale Einträge mit wissenschaftlichen matchen
+    # Matching-Priorität:
+    #   1. Exakter Genname  + Erkrankung ist Substring
+    #   2. Kompatibler Genname + Erkrankung ist Substring  (BCL11 ↔ BCL11B)
+    #   3. Kompatibler Genname allein                      (CD79A ↔ CD79, korrupter Erkrankungsname)
+    gene_col_index = {}
+    for (nat_gene, nat_disease) in nat_order:
+        nat_disease_norm = nat_disease.lower().strip()
+        best_match = None
+        best_priority = 99
+
+        for (wiss_gene, wiss_disease), wiss_cols in wiss_raw.items():
+            wiss_disease_norm = wiss_disease.lower().strip()
+            gene_ok = genes_compatible(nat_gene, wiss_gene)
+            exact_gene = (nat_gene == wiss_gene)
+            disease_ok = (nat_disease_norm in wiss_disease_norm or
+                          wiss_disease_norm in nat_disease_norm)
+
+            if exact_gene and disease_ok:
+                priority = 1
+            elif gene_ok and disease_ok:
+                priority = 2
+            elif gene_ok:
+                priority = 3
+            else:
+                continue
+
+            if priority < best_priority:
+                best_priority = priority
+                best_match = wiss_cols
+
+        gene_col_index[(nat_gene, nat_disease)] = {
+            'nat_q':    [nat_entries[(nat_gene, nat_disease)]['q']]
+                        if nat_entries[(nat_gene, nat_disease)]['q'] else [],
+            'nat_kom':  [nat_entries[(nat_gene, nat_disease)]['kom']]
+                        if nat_entries[(nat_gene, nat_disease)]['kom'] else [],
+            'wiss_q':   [best_match['q']]   if best_match and best_match['q']   else [],
+            'wiss_kom': [best_match['kom']]  if best_match and best_match['kom'] else [],
+        }
+
+    gene_pairs = nat_order  # geordnete Liste von (gene, disease) Tupeln
+    return gene_col_index, gene_pairs
+
+
+def gd_key(gene, disease):
+    """Kurzform für den zusammengesetzten Schlüssel."""
+    return (gene, disease)
+
+
+# ---------------------------------------------------------------------------
 
 # Sidebar standardmäßig zugeklappt
 st.set_page_config(initial_sidebar_state="collapsed")
 
-# CSS
+# CSS (unverändert)
 st.markdown("""
 <style>
 .main .block-container { font-size: 13px !important; }
@@ -84,7 +221,6 @@ h3 { font-size: 16px !important; }
 h4 { font-size: 15px !important; }
 .caption { font-size: 11px !important; }
 
-/* Verbesserte Tab-Navigation */
 [role="tablist"] {
     gap: 3px;
     background-color: #f8f9fa;
@@ -92,7 +228,6 @@ h4 { font-size: 15px !important; }
     border-radius: 8px;
 }
 
-/* Fade-out Effekt entfernen - alle möglichen Pseudo-Elemente überschreiben */
 [role="tablist"] *::after,
 [role="tablist"] *::before,
 [role="tablist"]::after,
@@ -103,7 +238,6 @@ h4 { font-size: 15px !important; }
     mask-image: none !important;
 }
 
-/* Scroll-Schatten im Tab-Container entfernen */
 [class*="StyledTabList"]::after,
 [class*="StyledTabList"]::before,
 [class*="tablist"]::after,
@@ -111,7 +245,6 @@ h4 { font-size: 15px !important; }
     display: none !important;
 }
 
-/* Overflow-Container ohne Mask */
 .stTabs [role="tablist"] {
     -webkit-mask-image: none !important;
     mask-image: none !important;
@@ -157,22 +290,12 @@ h4 { font-size: 15px !important; }
     color: white !important;
 }
 
-/* Normaler Cursor für Dropdowns */
-[data-testid="stSelectbox"] {
-    cursor: pointer !important;
-}
-
-[data-testid="stSelectbox"] input {
-    cursor: pointer !important;
-}
-
-div[data-testid="stSelectbox"] > div {
-    cursor: pointer !important;
-}
+[data-testid="stSelectbox"] { cursor: pointer !important; }
+[data-testid="stSelectbox"] input { cursor: pointer !important; }
+div[data-testid="stSelectbox"] > div { cursor: pointer !important; }
 </style>
 
 <script>
-// ===== TAB-NAVIGATION PER KLICK =====
 function navigateTab(direction) {
     const tabs = document.querySelectorAll('[data-testid="stTab"]');
     if (tabs.length === 0) return;
@@ -186,7 +309,6 @@ function navigateTab(direction) {
     tabs[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
-// ===== TAB-HÖHE PER JAVASCRIPT ERZWINGEN =====
 function resizeTabs() {
     const tabs = document.querySelectorAll('[data-testid="stTab"]');
     tabs.forEach(tab => {
@@ -209,46 +331,29 @@ setTimeout(resizeTabs, 500);
 setTimeout(resizeTabs, 1500);
 const observer = new MutationObserver(() => setTimeout(resizeTabs, 100));
 observer.observe(document.body, { childList: true, subtree: true });
-// ===== KEEP-ALIVE =====
-// Verhindert dass Streamlit einschläft durch regelmäßige Aktivität
+
 (function keepAlive() {
     setInterval(function() {
-        // Sendet ein harmloses Maus-Bewegungs-Event alle 5 Minuten
         document.dispatchEvent(new MouseEvent('mousemove', {
-            bubbles: true,
-            cancelable: true,
-            view: window
+            bubbles: true, cancelable: true, view: window
         }));
-    }, 5 * 60 * 1000);  // Alle 5 Minuten
+    }, 5 * 60 * 1000);
 })();
 
-// ===== KEYBOARD NAVIGATION =====
 document.addEventListener('keydown', function(e) {
-    // Ignore if user is typing in input field
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        return;
-    }
-    
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     const tabs = document.querySelectorAll('[data-testid="stTab"]');
     if (tabs.length === 0) return;
-    
     let activeIndex = -1;
     tabs.forEach((tab, index) => {
-        if (tab.getAttribute('aria-selected') === 'true') {
-            activeIndex = index;
-        }
+        if (tab.getAttribute('aria-selected') === 'true') activeIndex = index;
     });
-    
     if (activeIndex === -1) return;
-    
-    // Arrow Right -> next tab
     if (e.key === 'ArrowRight') {
         e.preventDefault();
         const nextIndex = (activeIndex + 1) % tabs.length;
         tabs[nextIndex].click();
     }
-    
-    // Arrow Left -> previous tab
     if (e.key === 'ArrowLeft') {
         e.preventDefault();
         const prevIndex = (activeIndex - 1 + tabs.length) % tabs.length;
@@ -256,17 +361,21 @@ document.addEventListener('keydown', function(e) {
     }
 });
 </script>
-
 """, unsafe_allow_html=True)
 
 st.markdown("# Expertenreview gNBS")
 
 # Session State
 if 'df' not in st.session_state: st.session_state.df = None
-if 'genes' not in st.session_state: st.session_state.genes = []
+# PATCH: gene_pairs ist jetzt eine Liste von (gene, disease) Tupeln
+if 'gene_pairs' not in st.session_state: st.session_state.gene_pairs = []
+# PATCH: gene_col_index ersetzt gene_dict für Spalten-Lookups
+if 'gene_col_index' not in st.session_state: st.session_state.gene_col_index = {}
+# Kompatibilität: gene_dict bleibt für Erkrankungsanzeige (gene, disease) -> disease
 if 'gene_dict' not in st.session_state: st.session_state.gene_dict = {}
 if 'summary_df' not in st.session_state: st.session_state.summary_df = None
 if 'total_responses' not in st.session_state: st.session_state.total_responses = 0
+# PATCH: Schlüssel in user_comments und gene_decisions sind jetzt (gene, disease) Tupel
 if 'user_comments' not in st.session_state: st.session_state.user_comments = {}
 if 'gene_decisions' not in st.session_state: st.session_state.gene_decisions = {}
 if 'review_started' not in st.session_state: st.session_state.review_started = False
@@ -274,6 +383,8 @@ if 'nbs_overlap' not in st.session_state: st.session_state.nbs_overlap = None
 if 'prospective_studies' not in st.session_state: st.session_state.prospective_studies = None
 if 'attendees_list' not in st.session_state: st.session_state.attendees_list = None
 if 'selected_attendees' not in st.session_state: st.session_state.selected_attendees = []
+if 'disease_groups_list' not in st.session_state: st.session_state.disease_groups_list = None
+if 'selected_disease_group' not in st.session_state: st.session_state.selected_disease_group = None
 
 # Lade Namen/Kürzel beim ersten Start
 if st.session_state.attendees_list is None:
@@ -283,10 +394,25 @@ if st.session_state.attendees_list is None:
         response = urllib.request.urlopen(names_url)
         names_content = response.read().decode('utf-8-sig')
         names_df = pd.read_csv(io.StringIO(names_content))
-        # Erstelle Dict: {Kürzel: Voller Name}
         st.session_state.attendees_list = dict(zip(names_df['Name'], names_df['Kürzel']))
     except Exception as e:
         st.session_state.attendees_list = {}
+
+# Lade Erkrankungsgruppen beim ersten Start
+if st.session_state.disease_groups_list is None:
+    try:
+        import urllib.request
+        groups_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/disease_groups.csv"
+        response = urllib.request.urlopen(groups_url)
+        groups_content = response.read().decode('utf-8-sig')
+        groups_df = pd.read_csv(io.StringIO(groups_content))
+        st.session_state.disease_groups_list = groups_df['Gruppe'].dropna().tolist()
+    except Exception as e:
+        st.session_state.disease_groups_list = [
+            'Metabolisch', 'Renal', 'Kardiovaskulär', 'Hämatologisch',
+            'Immunologisch', 'Neurologisch', 'Endokrinologisch',
+            'Muskuloskelettal', 'Sonstige'
+        ]
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
@@ -296,10 +422,9 @@ if st.session_state.nbs_overlap is None:
         response = urllib.request.urlopen(overlap_url)
         overlap_content = response.read().decode('utf-8-sig')
         overlap_df = pd.read_csv(io.StringIO(overlap_content), sep=';')
-        # Erstelle Lookup-Dict: {gene: group}
         st.session_state.nbs_overlap = dict(zip(overlap_df['Gene'], overlap_df['Group']))
     except Exception as e:
-        st.session_state.nbs_overlap = {}  # Fallback: leeres Dict bei Fehler
+        st.session_state.nbs_overlap = {}
 
 # Lade Prospective Studies Excel beim ersten Start
 if st.session_state.prospective_studies is None:
@@ -308,23 +433,17 @@ if st.session_state.prospective_studies is None:
         studies_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/Prospective_studies.xlsx"
         response = urllib.request.urlopen(studies_url)
         excel_data = io.BytesIO(response.read())
-        
-        # Lade Sheets mit openpyxl engine
         babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+', engine='openpyxl')
         excel_data.seek(0)
         guardian_df = pd.read_excel(excel_data, sheet_name='Guardian', engine='openpyxl')
         excel_data.seek(0)
         generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
-        
-        # Beacons ist optional
         try:
             excel_data.seek(0)
             beacons_df = pd.read_excel(excel_data, sheet_name='Beacons', engine='openpyxl')
             beacons_dict = dict(zip(beacons_df['Gene'].astype(str), beacons_df['Disorder'].astype(str)))
         except:
             beacons_dict = {}
-        
-        # Erstelle Lookup-Dicts: {gene: disorder}
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
@@ -334,24 +453,20 @@ if st.session_state.prospective_studies is None:
         st.session_state.prospective_studies_error = None
     except Exception as e:
         st.session_state.prospective_studies = {
-            'BabyScreen+': {},
-            'Guardian': {},
-            'Generation Study': {},
-            'Beacons': {}
+            'BabyScreen+': {}, 'Guardian': {}, 'Generation Study': {}, 'Beacons': {}
         }
         st.session_state.prospective_studies_error = str(e)
 
 # Upload
 if st.session_state.df is None:
     uploaded_file = st.file_uploader('CSV hochladen', type='csv')
-    
-    # Dummy-Daten Bereich
+
     st.markdown("---")
     st.markdown("#### 🧪 Testmodus")
     st.markdown("<small style='color:#888;'>Zum Testen der App können Dummy-Datensätze aus dem Repository geladen werden:</small>", unsafe_allow_html=True)
-    
+
     DUMMY_BASE = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs"
-    
+
     col_d1, col_d2 = st.columns(2)
     with col_d1:
         if st.button("📂 8 Antworten (ohne Kommentare)", use_container_width=True):
@@ -377,176 +492,127 @@ if st.session_state.df is None:
                 except Exception as e:
                     st.error(f"Konnte Dummy-Daten nicht laden: {e}")
                     uploaded_file = None
-    
+
     if uploaded_file is not None:
         with st.spinner('Lade & analysiere...'):
-            # Versuche verschiedene Encoding-Optionen und lade ALLE Spalten
             try:
-                df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig', 
-                               low_memory=False, engine='python')
+                df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig',
+                               engine='python')
             except:
                 uploaded_file.seek(0)
                 try:
-                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8', 
-                                   low_memory=False, engine='python')
+                    df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8',
+                                   engine='python')
                 except:
                     uploaded_file.seek(0)
                     try:
-                        df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='latin-1', 
-                                       low_memory=False, engine='python')
+                        df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='latin-1',
+                                       engine='python')
                     except:
                         uploaded_file.seek(0)
-                        # Letzte Option: c engine ohne low_memory
                         df = pd.read_csv(uploaded_file, sep=',', quotechar='"', encoding='utf-8-sig')
-            
+
             st.session_state.df = df
             st.session_state.total_responses = len(df)
-            
-            # Namens-Extraktion - berücksichtigt auch Non-Breaking Spaces
-            gene_dict = {}
-            matching_columns = []
-            all_gene_columns = []
-            
-            # Debug-Counter
-            has_gen = 0
-            has_erkrankung = 0
-            has_nationalen = 0
-            has_all_without_kommentar = 0
-            
-            # Sammle ALLE Spalten die "Gen: " enthalten
-            for col in df.columns:
-                if 'Gen:' in col:  # Ohne Leerzeichen, um auch "Gen:\xa0" zu matchen
-                    all_gene_columns.append(col)
-                    has_gen += 1
-                    
-                    # Prüfe auf Erkrankung (mit normalem Leerzeichen ODER Non-Breaking Space)
-                    if 'Erkrankung:' in col:  # Ohne Leerzeichen danach
-                        has_erkrankung += 1
-                        
-                        if 'nationalen' in col:
-                            has_nationalen += 1
-                            
-                            if '[Kommentar]' not in col:
-                                has_all_without_kommentar += 1
-                                matching_columns.append(col)
-                                
-                                # Gen extrahieren
-                                gene_start = col.find('Gen:') + 4
-                                # Überspringe Leerzeichen (normal oder NBSP)
-                                while gene_start < len(col) and col[gene_start] in ' \xa0\t':
-                                    gene_start += 1
-                                    
-                                # Suche nach "Erkrankung:"
-                                gene_end = col.find('Erkrankung:', gene_start)
-                                if gene_end == -1:
-                                    continue
-                                    
-                                gene = col[gene_start:gene_end].strip(' \xa0\t')
-                                
-                                # Erkrankung extrahieren
-                                disease_start = col.find('Erkrankung:', gene_start) + 11
-                                # Überspringe Leerzeichen (normal oder NBSP)
-                                while disease_start < len(col) and col[disease_start] in ' \xa0\t':
-                                    disease_start += 1
-                                    
-                                # Finde Ende (vor [Kommentar] oder am Ende)
-                                disease_end = len(col)
-                                for marker in [' [', '\n', '\t', '  ']:
-                                    pos = col.find(marker, disease_start)
-                                    if pos != -1 and pos < disease_end:
-                                        disease_end = pos
-                                        
-                                disease = col[disease_start:disease_end].strip(' \xa0\t')
-                                
-                                if gene: 
-                                    gene_dict[gene] = disease
-            
-            st.session_state.genes = sorted(gene_dict.keys())
-            st.session_state.gene_dict = gene_dict
-            
-            # Summary Tabelle (numerisch, Yes/No)
+
+            # PATCH: zentrales Parsing über build_gene_col_index()
+            gene_col_index, gene_pairs = build_gene_col_index(df)
+            st.session_state.gene_col_index = gene_col_index
+            st.session_state.gene_pairs = gene_pairs
+            # gene_dict: (gene, disease) -> disease (für Erkrankungsanzeige)
+            st.session_state.gene_dict = {(g, d): d for (g, d) in gene_pairs}
+
+            # summary_df aufbauen – Schlüssel ist jetzt (gene, disease)
             summary_data = []
-            options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
-            for gene in st.session_state.genes:
-                nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
-                nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
-                stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-                stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
-                
-                nat_data = df[nat_q_cols].stack().dropna()
-                n_nat = len(nat_data)
-                stud_data = df[stud_q_cols].stack().dropna()
+            for (gene, disease) in gene_pairs:
+                cols = gene_col_index[(gene, disease)]
+                nat_data  = df[cols['nat_q']].stack().dropna()  if cols['nat_q']  else pd.Series(dtype=str)
+                stud_data = df[cols['wiss_q']].stack().dropna() if cols['wiss_q'] else pd.Series(dtype=str)
+
+                n_nat  = len(nat_data)
                 n_stud = len(stud_data)
-                
-                nat_ja = (nat_data == 'Ja').sum() / n_nat * 100 if n_nat > 0 else 0
-                stud_ja = (stud_data == 'Ja').sum() / n_stud * 100 if n_stud > 0 else 0
-                
-                # Sammle Kommentare - gleich beim Einlesen Zeilenumbrüche bereinigen
+
+                nat_ja   = (nat_data  == 'Ja').sum() / n_nat  * 100 if n_nat  > 0 else 0
+                stud_ja  = (stud_data == 'Ja').sum() / n_stud * 100 if n_stud > 0 else 0
+
                 nat_comments = [
                     str(c).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').strip()
-                    for c in df[nat_kom_cols].stack().dropna()
-                    if str(c).strip()
-                ]
+                    for c in df[cols['nat_kom']].stack().dropna() if str(c).strip()
+                ] if cols['nat_kom'] else []
+
                 stud_comments = [
                     str(c).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ').strip()
-                    for c in df[stud_kom_cols].stack().dropna()
-                    if str(c).strip()
-                ]
-                
+                    for c in df[cols['wiss_kom']].stack().dropna() if str(c).strip()
+                ] if cols['wiss_kom'] else []
+
+                # PATCH: Warnung wenn wiss-Spalten fehlen
+                wiss_missing = len(cols['wiss_q']) == 0
+
+                disease_display = disease[:1].upper() + disease[1:] if disease else ''
                 summary_data.append({
                     'Gen': gene,
-                    'Erkrankung': st.session_state.gene_dict[gene][:1].upper() + st.session_state.gene_dict[gene][1:] if st.session_state.gene_dict[gene] else '',
+                    'Erkrankung': disease_display,
+                    # PATCH: Gene-Disease-Key als Tuple gespeichert für spätere Lookups
+                    '_key': (gene, disease),
                     'National_Ja_pct': round(nat_ja, 1),
                     'National_n': n_nat,
                     'Studie_Ja_pct': round(stud_ja, 1),
                     'Studie_n': n_stud,
                     'National_80': 'Yes' if nat_ja >= 80 else 'No',
                     'Kommentare_National': ' | '.join(nat_comments) if nat_comments else '',
-                    'Kommentare_Studie': ' | '.join(stud_comments) if stud_comments else ''
+                    'Kommentare_Studie':   ' | '.join(stud_comments) if stud_comments else '',
+                    'Wiss_fehlend': wiss_missing,
                 })
-            
+
             st.session_state.summary_df = pd.DataFrame(summary_data)
-            
-            # Automatische Bewertungsvorschläge basierend auf Umfrage
-            if 'gene_decisions' not in st.session_state or not st.session_state.gene_decisions:
-                st.session_state.gene_decisions = {}
-                for gene in st.session_state.genes:
-                    gene_data = st.session_state.summary_df[st.session_state.summary_df['Gen'] == gene].iloc[0]
-                    nat_ja_pct = gene_data['National_Ja_pct']
-                    stud_ja_pct = gene_data['Studie_Ja_pct']
-                    
-                    if nat_ja_pct >= 80:
-                        st.session_state.gene_decisions[gene] = '🟢 Aufnahme in nationales gNBS'
-                    elif stud_ja_pct >= 80:
-                        st.session_state.gene_decisions[gene] = '🟡 Aufnahme in wissenschaftliche gNBS Studie'
+
+            # Warnungen für fehlende wiss-Spalten (BCL11/CD79A-Typ-Fehler)
+            missing = st.session_state.summary_df[st.session_state.summary_df['Wiss_fehlend']]
+            if not missing.empty:
+                gene_list = ', '.join(missing['Gen'].tolist())
+                st.warning(
+                    f"⚠️ Für folgende Gene wurden keine passenden Spalten zur "
+                    f"*wissenschaftlichen Studie* gefunden: **{gene_list}**. "
+                    f"Bitte Gennamen in LimeSurvey auf Konsistenz prüfen."
+                )
+
+            # Initiale Entscheidungen setzen
+            if not st.session_state.gene_decisions:
+                for (gene, disease) in gene_pairs:
+                    row = st.session_state.summary_df[st.session_state.summary_df['_key'] == (gene, disease)].iloc[0]
+                    key = (gene, disease)
+                    if row['National_Ja_pct'] >= 80:
+                        st.session_state.gene_decisions[key] = '🟢 Aufnahme in nationales gNBS'
+                    elif row['Studie_Ja_pct'] >= 80:
+                        st.session_state.gene_decisions[key] = '🟡 Aufnahme in wissenschaftliche gNBS Studie'
                     else:
-                        st.session_state.gene_decisions[gene] = '🔴 Keine Berücksichtigung im gNBS'
-            
+                        st.session_state.gene_decisions[key] = '🔴 Keine Berücksichtigung im gNBS'
+
             st.rerun()
 
 else:
-    if st.sidebar.button('Neue CSV 🗑️'): 
+    if st.sidebar.button('Neue CSV 🗑️'):
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# === ZUSAMMENFASSUNGS-ANSICHT (nach Upload, vor Bewertung) ===
+
+# === ZUSAMMENFASSUNGS-ANSICHT ===
 if st.session_state.df is not None and not st.session_state.review_started:
     sdf = st.session_state.summary_df
-    n_genes = len(st.session_state.genes)
+    # PATCH: Anzahl Gene = Anzahl (gene, disease) Paare
+    n_genes = len(st.session_state.gene_pairs)
     n_responses = st.session_state.total_responses
-    
-    # Metriken berechnen
+
     n_national_80 = (sdf['National_Ja_pct'] >= 80).sum()
-    n_studie_80 = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] >= 80)).sum()
-    n_keine = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] < 80)).sum()
-    n_kommentare_nat = (sdf['Kommentare_National'] != '').sum()
-    n_kommentare_stud = (sdf['Kommentare_Studie'] != '').sum()
-    
+    n_studie_80   = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] >= 80)).sum()
+    n_keine       = ((sdf['National_Ja_pct'] < 80) & (sdf['Studie_Ja_pct'] < 80)).sum()
+    n_kommentare_nat  = (sdf['Kommentare_National'] != '').sum()
+    n_kommentare_stud = (sdf['Kommentare_Studie']   != '').sum()
+
     st.markdown("## 📊 Übersicht der eingelesenen Daten")
     st.markdown("*Datei erfolgreich eingelesen – bitte prüfen Sie die Zusammenfassung vor der Bewertung.*")
     st.markdown("---")
-    
-    # Zeile 1: Kern-Metriken
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f"""
@@ -567,11 +633,10 @@ if st.session_state.df is not None and not st.session_state.review_started:
             <div style='font-size:36px; font-weight:700; color:#1f77b4;'>{avg_response_rate}%</div>
             <div style='font-size:13px; color:#555; margin-top:4px;'>Ø Antwortrate pro Gen</div>
         </div>""", unsafe_allow_html=True)
-    
+
     st.markdown("<div style='margin-top:15px;'></div>", unsafe_allow_html=True)
-    
-    # Zeile 2: Umfrage-Ergebnisse (Ampel)
     st.markdown("#### Vorläufige Bewertung basierend auf ≥80% Cut-off")
+
     c4, c5, c6, c7 = st.columns(4)
     with c4:
         st.markdown(f"""
@@ -602,49 +667,42 @@ if st.session_state.df is not None and not st.session_state.review_started:
             <div style='font-size:12px; color:#555; margin-top:4px;'>💬 Kommentare</div>
             <div style='font-size:11px; color:#555;'>({n_kommentare_nat} nat. / {n_kommentare_stud} Studie)</div>
         </div>""", unsafe_allow_html=True)
-    
+
     st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
-    
-    # Vorschau-Tabelle der Gene
-    st.markdown("#### Erkannte Gene")
+    st.markdown("#### Erkannte Gen-Erkrankungs-Kombinationen")
+
     preview = sdf[['Gen', 'Erkrankung', 'National_Ja_pct', 'Studie_Ja_pct']].copy()
     preview.columns = ['Gen', 'Erkrankung', 'National (% Ja)', 'Studie (% Ja)']
     preview.index = range(1, len(preview) + 1)
     preview['Vorläufig'] = preview.apply(
-        lambda r: '🟢 National' if r['National (% Ja)'] >= 80 
+        lambda r: '🟢 National' if r['National (% Ja)'] >= 80
         else ('🟡 Studie' if r['Studie (% Ja)'] >= 80 else '🔴 Keine'), axis=1
     )
+    # PATCH: Warnzeichen für fehlende wiss-Spalten
+    preview['⚠️'] = sdf['Wiss_fehlend'].apply(lambda x: '⚠️' if x else '')
     st.dataframe(preview, use_container_width=True, height=min(400, 36 + n_genes * 35))
-    
+    if sdf['Wiss_fehlend'].any():
+        st.caption("⚠️ = Spalte 'Wissenschaftliche Studie' in CSV nicht gefunden. Gennamen in LimeSurvey prüfen.")
+
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
-    
-    # Teilnehmer-Auswahl
+
+    # === TEILNEHMER (unverändert) ===
     st.markdown("#### 👥 Anwesende Teilnehmer")
     st.markdown("<small style='color:#666;'>Wählen Sie die Teilnehmer des Review-Meetings aus:</small>", unsafe_allow_html=True)
-    
-    # Kürzel als Optionen (sortiert)
+
     if st.session_state.attendees_list:
         attendee_options = sorted(st.session_state.attendees_list.keys())
-        
-        # Pills für schnelle Auswahl
         selected_pills = st.pills(
-            "Teilnehmer",
-            options=attendee_options,
-            selection_mode="multi",
-            label_visibility="collapsed",
-            key="attendee_pills",
+            "Teilnehmer", options=attendee_options, selection_mode="multi",
+            label_visibility="collapsed", key="attendee_pills",
             help="Klicken Sie um Teilnehmer hinzuzufügen/zu entfernen"
         )
-        
-        # Zusätzliche Teilnehmer (freies Textfeld)
         additional = st.text_input(
             "Weitere Teilnehmer (optional)",
             value=st.session_state.get('additional_attendees', ''),
             placeholder="z.B. 'Dr. Anna Müller (Gast), Prof. Thomas Weber'",
             help="Für Teilnehmer die nicht in der Liste sind. Mehrere Teilnehmer mit Komma trennen."
         )
-        
-        # Zeige Vorschau
         if selected_pills or (additional and additional.strip()):
             st.markdown("<small style='color:#666;'>**Vorschau:**</small>", unsafe_allow_html=True)
             all_attendees = []
@@ -652,46 +710,62 @@ if st.session_state.df is not None and not st.session_state.review_started:
                 full_name = st.session_state.attendees_list.get(abbr, abbr)
                 all_attendees.append(f"{abbr} ({full_name})")
             if additional and additional.strip():
-                # Parse komma-getrennte Namen
                 additional_names = [name.strip() for name in additional.split(',') if name.strip()]
                 all_attendees.extend(additional_names)
             st.caption(", ".join(all_attendees))
-        
-        # Bestätigen-Button
+
         attendees_confirmed = st.session_state.get('attendees_confirmed', False)
-        
         if st.button("✓ Teilnehmer bestätigen", use_container_width=False, disabled=attendees_confirmed):
             st.session_state.selected_attendees = selected_pills if selected_pills else []
             st.session_state.additional_attendees = additional
             st.session_state.attendees_confirmed = True
             st.success("✓ Teilnehmer gespeichert!")
-        
         if attendees_confirmed:
             st.success("✓ Teilnehmer bestätigt")
-    
+
     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
-    
-    # Start-Button nur wenn Teilnehmer bestätigt wurden
+
+    # === ERKRANKUNGSGRUPPE (unverändert) ===
+    st.markdown("#### 🏷️ Erkrankungsgruppe dieser Session")
+    st.markdown("<small style='color:#666;'>Wählen Sie die Erkrankungsgruppe, der alle Gen-Erkrankungs-Kombinationen dieser Session zugeordnet werden:</small>", unsafe_allow_html=True)
+
+    group_options  = st.session_state.disease_groups_list or []
+    group_confirmed = st.session_state.get('group_confirmed', False)
+    selected_group = st.selectbox(
+        "Erkrankungsgruppe",
+        options=["– bitte auswählen –"] + group_options,
+        index=0 if not st.session_state.selected_disease_group
+              else (["– bitte auswählen –"] + group_options).index(st.session_state.selected_disease_group)
+                   if st.session_state.selected_disease_group in group_options else 0,
+        label_visibility="collapsed", disabled=group_confirmed, key="group_select"
+    )
+    if st.button("✓ Erkrankungsgruppe bestätigen", use_container_width=False, disabled=group_confirmed):
+        if selected_group == "– bitte auswählen –":
+            st.warning("⚠️ Bitte wählen Sie eine Erkrankungsgruppe aus.")
+        else:
+            st.session_state.selected_disease_group = selected_group
+            st.session_state.group_confirmed = True
+            st.success(f"✓ Erkrankungsgruppe gespeichert: {selected_group}")
+    if group_confirmed:
+        st.success(f"✓ Erkrankungsgruppe bestätigt: **{st.session_state.selected_disease_group}**")
+
+    st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+
     attendees_confirmed = st.session_state.get('attendees_confirmed', False)
-    
-    if not attendees_confirmed:
-        st.warning("⚠️ Bitte bestätigen Sie zuerst die Teilnehmerliste")
-    
-    # Start-Button
+    group_confirmed     = st.session_state.get('group_confirmed', False)
+    session_ready = attendees_confirmed and group_confirmed
+
+    if not attendees_confirmed: st.warning("⚠️ Bitte bestätigen Sie zuerst die Teilnehmerliste")
+    if not group_confirmed:     st.warning("⚠️ Bitte bestätigen Sie die Erkrankungsgruppe")
+
     col_l, col_btn, col_r = st.columns([2, 2, 2])
     with col_btn:
-        if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not attendees_confirmed):
+        if st.button('▶ Bewertung starten', type='primary', use_container_width=True, disabled=not session_ready):
             st.session_state.review_started = True
             st.rerun()
 
 
 def _clean_str(value):
-    """
-    Bereinigt einen String-Wert für den CSV-Export:
-    - Entfernt eingebettete Zeilenumbrüche (LimeSurvey hängt an Freitextfelder automatisch \\n an)
-    - Entfernt führende/nachfolgende Leerzeichen
-    - Wandelt pandas NA/None in leeren String um
-    """
     if pd.isna(value):
         return ''
     s = str(value)
@@ -701,190 +775,133 @@ def _clean_str(value):
     return s.strip()
 
 
-# Funktion zum Generieren der CSV
 def generate_csv():
     """
-    Generiert CSV-Export mit vollständiger Delphi-Prozess Dokumentation.
-    Struktur ermöglicht Nachvollziehbarkeit von Umfrage-Ergebnis zu finaler Entscheidung.
-
-    Fix: LimeSurvey hängt an Freitextantworten automatisch \\n an. Diese eingebetteten
-    Zeilenumbrüche werden hier in ALLEN String-Spalten entfernt, damit Excel/Numbers
-    die CSV korrekt als eine Zeile pro Gen einlesen.
+    CSV-Export. PATCH: Schlüssel sind jetzt (gene, disease) Tupel;
+    Spalten Gen und Erkrankung kommen aus dem Tupel, nicht aus gene_dict.
     """
+    import csv
     csv_buffer = io.StringIO()
     export_df = st.session_state.summary_df.copy()
-    
-    # === METADATEN ===
+
     export_df.insert(0, 'Gesamt_Responses', st.session_state.total_responses)
     export_df.insert(1, 'Export_Datum', datetime.now().strftime('%Y-%m-%d'))
     export_df.insert(2, 'Export_Zeit', datetime.now().strftime('%H:%M:%S'))
-    
-    # Teilnehmer
+
     attendees_str = ""
     if st.session_state.selected_attendees:
-        attendees_names = [st.session_state.attendees_list.get(abbr, abbr) for abbr in st.session_state.selected_attendees]
+        attendees_names = [st.session_state.attendees_list.get(abbr, abbr)
+                           for abbr in st.session_state.selected_attendees]
         attendees_str = "; ".join(attendees_names)
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-            additional_names = [name.strip() for name in st.session_state.additional_attendees.split(',') if name.strip()]
+            additional_names = [n.strip() for n in st.session_state.additional_attendees.split(',') if n.strip()]
             if additional_names:
                 attendees_str += "; " + "; ".join(additional_names)
     elif hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-        additional_names = [name.strip() for name in st.session_state.additional_attendees.split(',') if name.strip()]
+        additional_names = [n.strip() for n in st.session_state.additional_attendees.split(',') if n.strip()]
         attendees_str = "; ".join(additional_names)
-    
+
     export_df.insert(3, 'Anwesende_Teilnehmer', attendees_str)
-    
-    # === UMFRAGE-ERGEBNISSE (Delphi Runde 1) ===
-    # Absolute Zahlen für Transparenz
-    national_ja = []
-    national_nein = []
-    national_na = []
-    studie_ja = []
-    studie_nein = []
-    studie_na = []
-    
+
+    # Detaillierte Antwortzahlen
     df = st.session_state.df
-    for gene in export_df['Gen']:
-        nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
-        stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-        
-        nat_data = df[nat_q_cols].stack().dropna()
-        stud_data = df[stud_q_cols].stack().dropna()
-        
-        national_ja.append((nat_data == 'Ja').sum())
-        national_nein.append((nat_data == 'Nein').sum())
-        national_na.append((nat_data == 'Ich kann diese Frage nicht beantworten').sum())
-        
-        studie_ja.append((stud_data == 'Ja').sum())
-        studie_nein.append((stud_data == 'Nein').sum())
-        studie_na.append((stud_data == 'Ich kann diese Frage nicht beantworten').sum())
-    
-    export_df['National_Ja_n'] = national_ja
+    gene_col_index = st.session_state.gene_col_index
+
+    national_ja, national_nein, national_na = [], [], []
+    studie_ja,   studie_nein,   studie_na   = [], [], []
+
+    # PATCH: Iteration über (gene, disease) Paare
+    for key in export_df['_key']:
+        cols = gene_col_index.get(key, {'nat_q': [], 'wiss_q': []})
+        nat_data  = df[cols['nat_q']].stack().dropna()  if cols['nat_q']  else pd.Series(dtype=str)
+        stud_data = df[cols['wiss_q']].stack().dropna() if cols['wiss_q'] else pd.Series(dtype=str)
+
+        national_ja.append((nat_data   == 'Ja').sum())
+        national_nein.append((nat_data  == 'Nein').sum())
+        national_na.append((nat_data    == 'Ich kann diese Frage nicht beantworten').sum())
+        studie_ja.append((stud_data     == 'Ja').sum())
+        studie_nein.append((stud_data   == 'Nein').sum())
+        studie_na.append((stud_data     == 'Ich kann diese Frage nicht beantworten').sum())
+
+    export_df['National_Ja_n']   = national_ja
     export_df['National_Nein_n'] = national_nein
-    export_df['National_NA_n'] = national_na
-    export_df['Studie_Ja_n'] = studie_ja
-    export_df['Studie_Nein_n'] = studie_nein
-    export_df['Studie_NA_n'] = studie_na
-    
-    # === AUTOMATISCHE EMPFEHLUNG (basierend auf Umfrage) ===
+    export_df['National_NA_n']   = national_na
+    export_df['Studie_Ja_n']     = studie_ja
+    export_df['Studie_Nein_n']   = studie_nein
+    export_df['Studie_NA_n']     = studie_na
+
+    # Automatische Empfehlung
     umfrage_empfehlung = []
-    for idx, row in export_df.iterrows():
+    for _, row in export_df.iterrows():
         if row['National_Ja_pct'] >= 80:
-            umfrage_empfehlung.append('Nationales gNBS')
+            umfrage_empfehlung.append('Aufnahme in nationales gNBS')
         elif row['Studie_Ja_pct'] >= 80:
-            umfrage_empfehlung.append('Wissenschaftliche Studie')
+            umfrage_empfehlung.append('Aufnahme in wissenschaftliche gNBS Studie')
         else:
-            umfrage_empfehlung.append('Keine Berücksichtigung')
-    
+            umfrage_empfehlung.append('Keine Berücksichtigung im gNBS')
     export_df['Umfrage_Empfehlung'] = umfrage_empfehlung
-    
-    # === EXPERTENGRUPPEN-ENTSCHEIDUNG (Delphi Runde 2 / Konsensus) ===
-    decisions = []
-    decision_clean = []  # Ohne Emojis für bessere Lesbarkeit
-    for gene in export_df['Gen']:
-        decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
-        decisions.append(decision)
-        
-        # Bereinige für CSV (ohne Emojis)
+
+    # Expertengruppen-Entscheidung – PATCH: Lookup per (gene, disease) Tupel
+    decision_clean = []
+    for key in export_df['_key']:
+        decision = st.session_state.gene_decisions.get(key, 'Noch nicht bewertet')
         clean = decision.replace('🟢 ', '').replace('🟡 ', '').replace('🔴 ', '').replace('⚪ ', '')
         decision_clean.append(clean)
-    
     export_df['Expertengruppe_Entscheidung'] = decision_clean
-    
-    # === ABWEICHUNGS-ANALYSE ===
-    abweichung = []
-    abweichung_typ = []
-    
-    for idx, row in export_df.iterrows():
+
+    # Abweichungsanalyse
+    abweichung, abweichung_typ = [], []
+    for _, row in export_df.iterrows():
         umfrage = row['Umfrage_Empfehlung']
         experte = row['Expertengruppe_Entscheidung']
-        
         if experte == 'Noch nicht bewertet':
-            abweichung.append('Nicht bewertet')
-            abweichung_typ.append('')
-        elif 'Nationales gNBS' in experte and umfrage == 'Nationales gNBS':
-            abweichung.append('Keine Abweichung')
-            abweichung_typ.append('')
-        elif 'wissenschaftliche' in experte and umfrage == 'Wissenschaftliche Studie':
-            abweichung.append('Keine Abweichung')
-            abweichung_typ.append('')
-        elif 'Keine Berücksichtigung' in experte and umfrage == 'Keine Berücksichtigung':
-            abweichung.append('Keine Abweichung')
-            abweichung_typ.append('')
+            abweichung.append('Nicht bewertet'); abweichung_typ.append('')
+        elif umfrage == experte:
+            abweichung.append('Keine Abweichung'); abweichung_typ.append('')
         else:
             abweichung.append('Abweichung')
             abweichung_typ.append(f'Umfrage: {umfrage} → Experten: {experte}')
-    
     export_df['Abweichung_von_Umfrage'] = abweichung
-    export_df['Abweichung_Details'] = abweichung_typ
-    
-    # === ZUSÄTZLICHE DOKUMENTATION ===
-    reviewer_comments = []
-    for gene in export_df['Gen']:
-        comment = st.session_state.user_comments.get(gene, '')
-        reviewer_comments.append(comment)
-    
-    export_df['Expertengruppe_Notizen'] = reviewer_comments
-    
-    # === SPALTEN-REIHENFOLGE FÜR PUBLIKATION ===
+    export_df['Abweichung_Details']     = abweichung_typ
+
+    # Notizen – PATCH: Lookup per (gene, disease) Tupel
+    export_df['Expertengruppe_Notizen'] = [
+        st.session_state.user_comments.get(key, '') for key in export_df['_key']
+    ]
+    export_df['Erkrankungsgruppe'] = st.session_state.get('selected_disease_group', '')
+
     column_order = [
-        # Metadaten
         'Export_Datum', 'Export_Zeit', 'Gesamt_Responses',
-
-        # Gen-Information
-        'Gen', 'Erkrankung',
-
-        # Umfrage-Ergebnisse National
+        'Gen', 'Erkrankung', 'Erkrankungsgruppe',
         'National_n', 'National_Ja_n', 'National_Nein_n', 'National_NA_n', 'National_Ja_pct', 'National_80',
-
-        # Umfrage-Ergebnisse Studie
         'Studie_n', 'Studie_Ja_n', 'Studie_Nein_n', 'Studie_NA_n', 'Studie_Ja_pct',
-
-        # Umfrage-Kommentare
         'Kommentare_National', 'Kommentare_Studie',
-
-        # Delphi-Prozess
-        'Umfrage_Empfehlung',
-        'Expertengruppe_Entscheidung',
-        'Abweichung_von_Umfrage',
-        'Abweichung_Details',
+        'Umfrage_Empfehlung', 'Expertengruppe_Entscheidung',
+        'Abweichung_von_Umfrage', 'Abweichung_Details',
         'Expertengruppe_Notizen'
     ]
-    
     export_df = export_df[column_order]
 
-    # =========================================================
-    # FIX: Zeilenumbrüche in ALLEN String-Spalten bereinigen
-    #
-    # LimeSurvey hängt an Freitextantworten automatisch \n an.
-    # Auch manuell eingegebene Notizen können \n enthalten.
-    # pandas schreibt diese RFC-4180-konform in Anführungszeichen,
-    # aber Excel/Numbers brechen trotzdem um.
-    # Lösung: \r\n, \r und \n in Leerzeichen umwandeln.
-    # _clean_str() behandelt zusätzlich None/NaN → leerer String.
-    # =========================================================
     for col in export_df.select_dtypes(include='object').columns:
         export_df[col] = export_df[col].map(_clean_str)
 
-    export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+    export_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig', quoting=1)
     return csv_buffer.getvalue().encode('utf-8-sig')
 
 
-# Funktion zum Generieren des PDFs
 def generate_pdf():
-    """Generiert ein PDF-Dokument mit allen Genen, Visualisierungen und Kommentaren"""
-    
-    # Custom Canvas class für Footer mit Seitenzahlen und Bookmarks
+    """PDF-Export. PATCH: Iteration über gene_pairs (Tupel), Lookups per (gene, disease)."""
+
     class PageNumCanvas(canvas.Canvas):
         def __init__(self, *args, **kwargs):
             canvas.Canvas.__init__(self, *args, **kwargs)
             self.pages = []
             self.creation_date = datetime.now().strftime('%d.%m.%Y')
-            
+
         def showPage(self):
             self.pages.append(dict(self.__dict__))
             self._startPage()
-            
+
         def save(self):
             page_count = len(self.pages)
             for page_num, page in enumerate(self.pages, start=1):
@@ -892,462 +909,338 @@ def generate_pdf():
                 self.draw_page_number(page_num, page_count)
                 canvas.Canvas.showPage(self)
             canvas.Canvas.save(self)
-            
+
         def draw_page_number(self, page_num, page_count):
-            # Footer Linie
             self.setStrokeColor(colors.grey)
             self.setLineWidth(0.5)
             self.line(0.75*inch, 0.5*inch, A4[0] - 0.75*inch, 0.5*inch)
-            
-            # Footer Text
             self.setFont('Helvetica', 8)
             self.setFillColor(colors.grey)
-            
-            # Links: Datum
             self.drawString(0.75*inch, 0.35*inch, f"Erstellt am: {self.creation_date}")
-            
-            # Mitte: Seitenzahl
             page_text = f"Seite {page_num} von {page_count}"
             page_text_width = self.stringWidth(page_text, 'Helvetica', 8)
             center_x = (A4[0] - page_text_width) / 2
             if center_x < 0.75*inch + 100:
                 center_x = 0.75*inch + 100
             self.drawString(center_x, 0.35*inch, page_text)
-            
-            # Rechts: UKHD Logo (falls vorhanden)
             try:
                 logo_path = "uk_akro.jpg"
                 if os.path.exists(logo_path):
                     logo_height = 0.4*inch
-                    logo_width = logo_height * 2
-                    x_position = A4[0] - 0.5*inch - logo_width
-                    y_position = 0.25*inch
-                    self.drawImage(logo_path, x_position, y_position, 
-                                 width=logo_width, height=logo_height, 
-                                 preserveAspectRatio=True, mask='auto')
-            except Exception as e:
+                    logo_width  = logo_height * 2
+                    self.drawImage(logo_path, A4[0] - 0.5*inch - logo_width, 0.25*inch,
+                                   width=logo_width, height=logo_height,
+                                   preserveAspectRatio=True, mask='auto')
+            except:
                 pass
-    
-    # Temporäre Datei für PDF
+
     pdf_buffer = io.BytesIO()
-    
-    # PDF Setup mit custom canvas
     doc = SimpleDocTemplate(pdf_buffer, pagesize=A4,
-                           topMargin=0.75*inch, bottomMargin=0.75*inch,
-                           leftMargin=0.75*inch, rightMargin=0.75*inch)
-    
-    # Styles
+                            topMargin=0.75*inch, bottomMargin=0.75*inch,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch)
+
     styles = getSampleStyleSheet()
-    
-    # Custom Styles
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        textColor=colors.HexColor('#1f77b4'),
-        spaceAfter=20,
-        alignment=TA_CENTER
-    )
-    
-    gene_style = ParagraphStyle(
-        'GeneName',
-        parent=styles['Heading2'],
-        fontSize=14,
-        textColor=colors.HexColor('#2ca02c'),
-        spaceAfter=6,
-        spaceBefore=12
-    )
-    
-    disease_style = ParagraphStyle(
-        'DiseaseName',
-        parent=styles['Normal'],
-        fontSize=11,
-        textColor=colors.grey,
-        spaceAfter=12,
-        italic=True
-    )
-    
-    section_style = ParagraphStyle(
-        'SectionHeader',
-        parent=styles['Heading3'],
-        fontSize=12,
-        textColor=colors.HexColor('#333333'),
-        spaceAfter=8,
-        spaceBefore=10
-    )
-    
-    comment_style = ParagraphStyle(
-        'CommentText',
-        parent=styles['Normal'],
-        fontSize=9,
-        leftIndent=20,
-        spaceAfter=6
-    )
-    
-    toc_style = ParagraphStyle(
-        'TOCEntry',
-        parent=styles['Normal'],
-        fontSize=10,
-        leftIndent=20,
-        spaceAfter=6,
-        textColor=colors.HexColor('#1f77b4')
-    )
-    
+    title_style   = ParagraphStyle('CustomTitle',  parent=styles['Heading1'],
+                                   fontSize=18, textColor=colors.HexColor('#1f77b4'),
+                                   spaceAfter=20, alignment=TA_CENTER)
+    gene_style    = ParagraphStyle('GeneName',     parent=styles['Heading2'],
+                                   fontSize=14, textColor=colors.HexColor('#2ca02c'),
+                                   spaceAfter=6, spaceBefore=12)
+    disease_style = ParagraphStyle('DiseaseName',  parent=styles['Normal'],
+                                   fontSize=11, textColor=colors.grey,
+                                   spaceAfter=12, italic=True)
+    section_style = ParagraphStyle('SectionHeader',parent=styles['Heading3'],
+                                   fontSize=12, textColor=colors.HexColor('#333333'),
+                                   spaceAfter=8, spaceBefore=10)
+    comment_style = ParagraphStyle('CommentText',  parent=styles['Normal'],
+                                   fontSize=9, leftIndent=20, spaceAfter=6)
+    toc_style     = ParagraphStyle('TOCEntry',     parent=styles['Normal'],
+                                   fontSize=10, leftIndent=20, spaceAfter=6,
+                                   textColor=colors.HexColor('#1f77b4'))
+
     story = []
-    
+    gene_pairs     = st.session_state.gene_pairs
+    gene_col_index = st.session_state.gene_col_index
+    df             = st.session_state.df
+
     # Titelseite
     story.append(Paragraph("Expertenreview gNBS", title_style))
     story.append(Paragraph(f"Dokumentation vom {datetime.now().strftime('%d.%m.%Y')}", styles['Normal']))
     story.append(Spacer(1, 12))
     story.append(Paragraph(f"Gesamtanzahl Responses: {st.session_state.total_responses}", styles['Normal']))
-    story.append(Paragraph(f"Anzahl Gene: {len(st.session_state.genes)}", styles['Normal']))
+    # PATCH: Anzahl = len(gene_pairs)
+    story.append(Paragraph(f"Anzahl Gen-Erkrankungs-Kombinationen: {len(gene_pairs)}", styles['Normal']))
+    disease_group = st.session_state.get('selected_disease_group', '')
+    if disease_group:
+        story.append(Paragraph(f"Erkrankungsgruppe: <b>{disease_group}</b>", styles['Normal']))
     story.append(Spacer(1, 20))
-    
-    # Anwesende Teilnehmer
+
     if st.session_state.selected_attendees or (hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees):
         story.append(Paragraph("<b>Anwesende:</b>", styles['Heading3']))
-        attendees_list = []
-        
-        for abbr in st.session_state.selected_attendees:
-            full_name = st.session_state.attendees_list.get(abbr, abbr)
-            attendees_list.append(full_name)
-        
+        attendees_list = [st.session_state.attendees_list.get(a, a) for a in st.session_state.selected_attendees]
         if hasattr(st.session_state, 'additional_attendees') and st.session_state.additional_attendees:
-            additional_str = st.session_state.additional_attendees
-            additional_names = [name.strip() for name in additional_str.split(',') if name.strip()]
-            attendees_list.extend(additional_names)
-        
+            attendees_list.extend([n.strip() for n in st.session_state.additional_attendees.split(',') if n.strip()])
         for attendee in attendees_list:
             story.append(Paragraph(f"• {attendee}", styles['Normal']))
-        
         story.append(Spacer(1, 12))
-    
+
     story.append(PageBreak())
-    
-    # Inhaltsverzeichnis auf Seite 2
+
+    # Inhaltsverzeichnis – PATCH: Tab-Label = "GENE · Erkrankung"
     story.append(Paragraph("Inhaltsverzeichnis", title_style))
     story.append(Spacer(1, 12))
-    
-    for idx, gene in enumerate(st.session_state.genes):
-        disease = st.session_state.gene_dict.get(gene, '')
-        page_num = idx + 3  # Start bei Seite 3
-        
-        toc_text = f'<b><i>{gene}</i></b> ({disease[:1].upper() + disease[1:] if disease else ""})'
-        
+    for idx, (gene, disease) in enumerate(gene_pairs):
+        disease_display = disease[:1].upper() + disease[1:] if disease else ''
+        page_num = idx + 3
+        toc_text = f'<b><i>{gene}</i></b> – {disease_display}'
         toc_data = [[Paragraph(toc_text, toc_style), str(page_num)]]
         toc_table = Table(toc_data, colWidths=[5.5*inch, 0.5*inch])
         toc_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, 0), 'LEFT'),
             ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (1, 0), (1, 0), 'Helvetica'),
-            ('FONTSIZE', (1, 0), (1, 0), 10),
+            ('FONTNAME',  (1, 0), (1, 0), 'Helvetica'),
+            ('FONTSIZE',  (1, 0), (1, 0), 10),
             ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor('#1f77b4')),
         ]))
         story.append(toc_table)
-    
     story.append(PageBreak())
-    
-    # Für jedes Gen eine Seite
-    df = st.session_state.df
-    
-    for gene in st.session_state.genes:
-        disease = st.session_state.gene_dict.get(gene, '')
-        
-        # Gen-Header mit Badge rechts oben
+
+    # Seiten pro Gen-Erkrankungs-Kombination
+    for pair_idx, (gene, disease) in enumerate(gene_pairs):
+        key = (gene, disease)
+        disease_display = disease[:1].upper() + disease[1:] if disease else ''
         overlap_group = st.session_state.nbs_overlap.get(gene, None)
-        
+
         header_left = Paragraph(f"<b><i>{gene}</i></b>", gene_style)
-        
+
         if overlap_group == "NBS":
-            badge_text = "✓ Im NBS"
-            badge_color = colors.HexColor('#2196F3')
+            badge_text, badge_color = "✓ Im NBS", colors.HexColor('#2196F3')
         elif overlap_group == "NGS2025":
-            badge_text = "✓ NGS2025"
-            badge_color = colors.HexColor('#FF9800')
+            badge_text, badge_color = "✓ NGS2025", colors.HexColor('#FF9800')
         else:
-            badge_text = None
-            badge_color = None
-        
+            badge_text, badge_color = None, None
+
         if badge_text:
-            badge_para = Paragraph(f"<font color='white' size='9'><b>{badge_text}</b></font>", 
-                                  ParagraphStyle('BadgeText', alignment=1))
+            badge_para  = Paragraph(f"<font color='white' size='9'><b>{badge_text}</b></font>",
+                                    ParagraphStyle('BadgeText', alignment=1))
             badge_table = Table([[badge_para]], colWidths=[0.9*inch])
             badge_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), badge_color),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ('LEFTPADDING', (0, 0), (-1, -1), 8),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+                ('BACKGROUND',   (0,0),(-1,-1), badge_color),
+                ('TEXTCOLOR',    (0,0),(-1,-1), colors.white),
+                ('ALIGN',        (0,0),(-1,-1), 'CENTER'),
+                ('VALIGN',       (0,0),(-1,-1), 'MIDDLE'),
+                ('TOPPADDING',   (0,0),(-1,-1), 4),
+                ('BOTTOMPADDING',(0,0),(-1,-1), 4),
+                ('LEFTPADDING',  (0,0),(-1,-1), 8),
+                ('RIGHTPADDING', (0,0),(-1,-1), 8),
+                ('ROUNDEDCORNERS', [4,4,4,4]),
             ]))
             header_right = badge_table
         else:
             header_right = ''
-        
+
         header_table = Table([[header_left, header_right]], colWidths=[4.6*inch, 1.4*inch])
         header_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN',  (0,0),(0,0), 'LEFT'),
+            ('ALIGN',  (1,0),(1,0), 'RIGHT'),
+            ('VALIGN', (0,0),(-1,-1), 'TOP'),
         ]))
         story.append(header_table)
-        
-        story.append(Paragraph(disease[:1].upper() + disease[1:] if disease else '', disease_style))
+        story.append(Paragraph(disease_display, disease_style))
         story.append(Spacer(1, 6))
-        
-        # Daten sammeln
-        nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
-        nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
-        stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-        stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
-        
-        nat_data = df[nat_q_cols].stack().dropna()
-        stud_data = df[stud_q_cols].stack().dropna()
-        
-        # Statistiken als Tabelle
-        nat_ja = (nat_data == 'Ja').sum()
-        nat_nein = (nat_data == 'Nein').sum()
-        nat_na = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
+
+        # PATCH: Spalten aus gene_col_index
+        cols = gene_col_index.get(key, {'nat_q':[], 'nat_kom':[], 'wiss_q':[], 'wiss_kom':[]})
+        nat_data  = df[cols['nat_q']].stack().dropna()  if cols['nat_q']  else pd.Series(dtype=str)
+        stud_data = df[cols['wiss_q']].stack().dropna() if cols['wiss_q'] else pd.Series(dtype=str)
+
+        nat_ja    = (nat_data  == 'Ja').sum()
+        nat_nein  = (nat_data  == 'Nein').sum()
+        nat_na    = (nat_data  == 'Ich kann diese Frage nicht beantworten').sum()
         nat_total = len(nat_data)
-        nat_ja_pct = (nat_ja / nat_total * 100) if nat_total > 0 else 0
-        nat_nein_pct = (nat_nein / nat_total * 100) if nat_total > 0 else 0
-        nat_na_pct = (nat_na / nat_total * 100) if nat_total > 0 else 0
-        
-        stud_ja = (stud_data == 'Ja').sum()
+        nat_ja_pct   = nat_ja   / nat_total  * 100 if nat_total  > 0 else 0
+
+        stud_ja   = (stud_data == 'Ja').sum()
         stud_nein = (stud_data == 'Nein').sum()
-        stud_na = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
+        stud_na   = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
         stud_total = len(stud_data)
-        stud_ja_pct = (stud_ja / stud_total * 100) if stud_total > 0 else 0
-        stud_nein_pct = (stud_nein / stud_total * 100) if stud_total > 0 else 0
-        stud_na_pct = (stud_na / stud_total * 100) if stud_total > 0 else 0
-        
-        # Tabelle mit Ergebnissen
+        stud_ja_pct  = stud_ja  / stud_total * 100 if stud_total > 0 else 0
+
+        nat_ja_pct_str  = f'{nat_ja}  ({nat_ja_pct:.1f}%)'
+        nat_nei_str     = f'{nat_nein} ({(nat_nein/nat_total*100) if nat_total else 0:.1f}%)'
+        nat_na_str      = f'{nat_na}   ({(nat_na/nat_total*100)   if nat_total else 0:.1f}%)'
+        stud_ja_pct_str = f'{stud_ja}  ({stud_ja_pct:.1f}%)'  if stud_total else 'n/a'
+        stud_nei_str    = f'{stud_nein} ({(stud_nein/stud_total*100) if stud_total else 0:.1f}%)' if stud_total else 'n/a'
+        stud_na_str     = f'{stud_na}   ({(stud_na/stud_total*100)   if stud_total else 0:.1f}%)' if stud_total else 'n/a'
+
         data = [
             ['', 'Nationales Screening', 'Wissenschaftliche Studie'],
-            ['Ja', f'{nat_ja} ({nat_ja_pct:.1f}%)', f'{stud_ja} ({stud_ja_pct:.1f}%)'],
-            ['Nein', f'{nat_nein} ({nat_nein_pct:.1f}%)', f'{stud_nein} ({stud_nein_pct:.1f}%)'],
-            ['Kann nicht beantworten', f'{nat_na} ({nat_na_pct:.1f}%)', f'{stud_na} ({stud_na_pct:.1f}%)'],
-            ['Gesamt', f'n={nat_total}', f'n={stud_total}'],
-            ['Cut-Off (≥80%)', '✓' if nat_ja_pct >= 80 else '✗', '✓' if stud_ja_pct >= 80 else '✗']
+            ['Ja',                  nat_ja_pct_str,  stud_ja_pct_str],
+            ['Nein',                nat_nei_str,     stud_nei_str],
+            ['Kann nicht beantworten', nat_na_str,   stud_na_str],
+            ['Gesamt',              f'n={nat_total}', f'n={stud_total}' if stud_total else 'n/a'],
+            ['Cut-Off (≥80%)',      '✓' if nat_ja_pct >= 80 else '✗',
+                                    '✓' if stud_ja_pct >= 80 else ('–' if not stud_total else '✗')]
         ]
-        
         t = Table(data, colWidths=[2.2*inch, 2*inch, 2*inch])
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0f0f0')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#fafafa')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('ROWBACKGROUNDS', (1, 1), (-1, -2), [colors.white, colors.HexColor('#f9f9f9')]),
+            ('BACKGROUND', (0,0),(-1,0), colors.HexColor('#f0f0f0')),
+            ('ALIGN',      (0,0),(-1,-1), 'CENTER'),
+            ('FONTNAME',   (0,0),(-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0),(-1,0), 10),
+            ('FONTSIZE',   (0,1),(-1,-1), 9),
+            ('BOTTOMPADDING', (0,0),(-1,0), 8),
+            ('BACKGROUND', (0,1),(0,-1), colors.HexColor('#fafafa')),
+            ('GRID',       (0,0),(-1,-1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (1,1),(-1,-2), [colors.white, colors.HexColor('#f9f9f9')]),
         ]))
-        
         story.append(t)
         story.append(Spacer(1, 15))
-        
-        # === SEKTION 1: UMFRAGEERGEBNISSE ===
+
+        # Ergebnis-Box
         story.append(Paragraph("<b>Ergebnis der Umfrage:</b>", section_style))
-        
         if nat_ja_pct >= 80:
-            result_color = colors.HexColor('#E8F5E9')
-            text_color = colors.HexColor('#2E7D32')
+            result_color, text_color = colors.HexColor('#E8F5E9'), colors.HexColor('#2E7D32')
             result_text = "≥80% Zustimmung für nationales gNBS"
         elif stud_ja_pct >= 80:
-            result_color = colors.HexColor('#FFF8E1')
-            text_color = colors.HexColor('#F57F17')
+            result_color, text_color = colors.HexColor('#FFF8E1'), colors.HexColor('#F57F17')
             result_text = "≥80% Zustimmung für wissenschaftliche Studie"
         else:
-            result_color = colors.HexColor('#FFEBEE')
-            text_color = colors.HexColor('#C62828')
+            result_color, text_color = colors.HexColor('#FFEBEE'), colors.HexColor('#C62828')
             result_text = "<80% Zustimmung für Berücksichtigung im gNBS"
-        
-        result_data = [[result_text]]
-        result_table = Table(result_data, colWidths=[5.5*inch])
-        result_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), result_color),
-            ('TEXTCOLOR', (0, 0), (-1, -1), text_color),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+
+        rt = Table([[result_text]], colWidths=[5.5*inch])
+        rt.setStyle(TableStyle([
+            ('BACKGROUND', (0,0),(-1,-1), result_color),
+            ('TEXTCOLOR',  (0,0),(-1,-1), text_color),
+            ('ALIGN',      (0,0),(-1,-1), 'CENTER'),
+            ('FONTNAME',   (0,0),(-1,-1), 'Helvetica-Bold'),
+            ('FONTSIZE',   (0,0),(-1,-1), 10),
+            ('TOPPADDING', (0,0),(-1,-1), 8),
+            ('BOTTOMPADDING',(0,0),(-1,-1), 8),
         ]))
-        story.append(result_table)
+        story.append(rt)
         story.append(Spacer(1, 10))
-        
-        # Kommentare aus Umfrage
+
+        # Kommentare – PATCH: aus gene_col_index
         story.append(Paragraph("<b>Kommentare aus der Umfrage:</b>", section_style))
-        
-        # Kommentare bereinigen (Zeilenumbrüche entfernen)
-        nat_comments = [
-            _clean_str(c)
-            for c in df[nat_kom_cols].stack().dropna()
-            if _clean_str(c)
-        ]
-        stud_comments = [
-            _clean_str(c)
-            for c in df[stud_kom_cols].stack().dropna()
-            if _clean_str(c)
-        ]
+        nat_comments  = [_clean_str(c) for c in df[cols['nat_kom']].stack().dropna()
+                         if _clean_str(c)] if cols['nat_kom'] else []
+        stud_comments = [_clean_str(c) for c in df[cols['wiss_kom']].stack().dropna()
+                         if _clean_str(c)] if cols['wiss_kom'] else []
 
         def make_comment_table(label, comment_list, bg_color, label_color):
-            """Hilfsfunktion: Erstellt eine farbig hinterlegte Kommentar-Box"""
-            rows = [[Paragraph(f"<b>{label}</b>", ParagraphStyle('CLabel', fontSize=8, textColor=label_color, fontName='Helvetica-Bold'))]]
+            rows = [[Paragraph(f"<b>{label}</b>",
+                               ParagraphStyle('CLabel', fontSize=8,
+                                              textColor=label_color, fontName='Helvetica-Bold'))]]
             for c in comment_list:
-                safe = c.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                rows.append([Paragraph(f"• {safe}", ParagraphStyle('CText', fontSize=8, leading=11, leftIndent=8))])
-            t = Table(rows, colWidths=[5.3*inch])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), bg_color),
-                ('TOPPADDING',    (0, 0), (-1, -1), 5),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-                ('LEFTPADDING',   (0, 0), (-1, -1), 10),
-                ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
-                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+                safe = c.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                rows.append([Paragraph(f"• {safe}",
+                                       ParagraphStyle('CText', fontSize=8, leading=11, leftIndent=8))])
+            ct = Table(rows, colWidths=[5.3*inch])
+            ct.setStyle(TableStyle([
+                ('BACKGROUND',   (0,0),(-1,-1), bg_color),
+                ('TOPPADDING',   (0,0),(-1,-1), 5),
+                ('BOTTOMPADDING',(0,0),(-1,-1), 5),
+                ('LEFTPADDING',  (0,0),(-1,-1), 10),
+                ('RIGHTPADDING', (0,0),(-1,-1), 10),
             ]))
-            return t
+            return ct
 
         if nat_comments:
-            story.append(make_comment_table(
-                "National", nat_comments,
-                colors.HexColor('#EAF4EA'), colors.HexColor('#2E7D32')
-            ))
+            story.append(make_comment_table("National", nat_comments,
+                                            colors.HexColor('#EAF4EA'), colors.HexColor('#2E7D32')))
             story.append(Spacer(1, 6))
-
         if stud_comments:
-            story.append(make_comment_table(
-                "Studie", stud_comments,
-                colors.HexColor('#FFF8E1'), colors.HexColor('#F57F17')
-            ))
+            story.append(make_comment_table("Studie", stud_comments,
+                                            colors.HexColor('#FFF8E1'), colors.HexColor('#F57F17')))
             story.append(Spacer(1, 6))
-
         if not nat_comments and not stud_comments:
             story.append(Paragraph("Keine Kommentare", comment_style))
             story.append(Spacer(1, 6))
-        
-        # Trennlinie zwischen Umfrage und Besprechung
+
         story.append(Spacer(1, 15))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=15))
-        
-        # === SEKTION 2: ERGEBNIS DER EXPERTENGRUPPEN-BESPRECHUNG ===
-        decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
-        
+
+        # Entscheidung – PATCH: Lookup per (gene, disease) Tupel
+        decision = st.session_state.gene_decisions.get(key, 'Noch nicht bewertet')
         story.append(Paragraph("<b>Entscheidung der Expertengruppe:</b>", section_style))
-        
+
         if decision and decision != 'Noch nicht bewertet':
-            decision_text = decision.replace('🟢 ', '').replace('🟡 ', '').replace('🔴 ', '').replace('⚪ ', '')
-            
-            if 'nationales gNBS' in decision:
-                box_color = colors.HexColor('#4CAF50')
-            elif 'wissenschaftliche' in decision:
-                box_color = colors.HexColor('#FFC107')
-            elif 'Keine Berücksichtigung' in decision:
-                box_color = colors.HexColor('#F44336')
-            else:
-                box_color = colors.HexColor('#9E9E9E')
-            
-            decision_data = [[decision_text]]
-            decision_table = Table(decision_data, colWidths=[5.5*inch])
-            decision_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), box_color),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 11),
-                ('TOPPADDING', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-                ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+            decision_text = decision.replace('🟢 ','').replace('🟡 ','').replace('🔴 ','').replace('⚪ ','')
+            if 'nationales gNBS'    in decision: box_color = colors.HexColor('#4CAF50')
+            elif 'wissenschaftliche' in decision: box_color = colors.HexColor('#FFC107')
+            elif 'Keine'            in decision: box_color = colors.HexColor('#F44336')
+            else:                                 box_color = colors.HexColor('#9E9E9E')
+            dt = Table([[decision_text]], colWidths=[5.5*inch])
+            dt.setStyle(TableStyle([
+                ('BACKGROUND',   (0,0),(-1,-1), box_color),
+                ('TEXTCOLOR',    (0,0),(-1,-1), colors.white),
+                ('ALIGN',        (0,0),(-1,-1), 'CENTER'),
+                ('FONTNAME',     (0,0),(-1,-1), 'Helvetica-Bold'),
+                ('FONTSIZE',     (0,0),(-1,-1), 11),
+                ('TOPPADDING',   (0,0),(-1,-1), 10),
+                ('BOTTOMPADDING',(0,0),(-1,-1), 10),
             ]))
-            story.append(decision_table)
+            story.append(dt)
         else:
-            no_decision_data = [["Noch nicht bewertet"]]
-            no_decision_table = Table(no_decision_data, colWidths=[5.5*inch])
-            no_decision_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F5F5F5')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#999999')),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('ROUNDEDCORNERS', [5, 5, 5, 5]),
+            nd = Table([["Noch nicht bewertet"]], colWidths=[5.5*inch])
+            nd.setStyle(TableStyle([
+                ('BACKGROUND', (0,0),(-1,-1), colors.HexColor('#F5F5F5')),
+                ('TEXTCOLOR',  (0,0),(-1,-1), colors.HexColor('#999999')),
+                ('ALIGN',      (0,0),(-1,-1), 'CENTER'),
+                ('FONTNAME',   (0,0),(-1,-1), 'Helvetica'),
+                ('FONTSIZE',   (0,0),(-1,-1), 10),
+                ('TOPPADDING', (0,0),(-1,-1), 8),
+                ('BOTTOMPADDING',(0,0),(-1,-1), 8),
             ]))
-            story.append(no_decision_table)
-        
+            story.append(nd)
+
         story.append(Spacer(1, 10))
-        
-        # Zusätzliche Notizen
-        reviewer_comment = st.session_state.user_comments.get(gene, '')
+
+        # Notizen – PATCH: Lookup per (gene, disease) Tupel
+        reviewer_comment = st.session_state.user_comments.get(key, '')
         if reviewer_comment:
             story.append(Paragraph("<b>Zusätzliche Notizen:</b>", section_style))
-            safe_reviewer_comment = reviewer_comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-            note_rows = [[Paragraph(
-                safe_reviewer_comment.replace('\n', '<br/>'),
-                ParagraphStyle('NoteText', fontSize=8, leading=12, leftIndent=4)
-            )]]
-            note_table = Table(note_rows, colWidths=[5.3*inch])
-            note_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F0F4FF')),
-                ('TOPPADDING',    (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('LEFTPADDING',   (0, 0), (-1, -1), 10),
-                ('RIGHTPADDING',  (0, 0), (-1, -1), 10),
-                ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+            safe_rc = reviewer_comment.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+            nt = Table([[Paragraph(safe_rc.replace('\n','<br/>'),
+                                   ParagraphStyle('NoteText', fontSize=8, leading=12, leftIndent=4))]],
+                       colWidths=[5.3*inch])
+            nt.setStyle(TableStyle([
+                ('BACKGROUND',   (0,0),(-1,-1), colors.HexColor('#F0F4FF')),
+                ('TOPPADDING',   (0,0),(-1,-1), 8),
+                ('BOTTOMPADDING',(0,0),(-1,-1), 8),
+                ('LEFTPADDING',  (0,0),(-1,-1), 10),
+                ('RIGHTPADDING', (0,0),(-1,-1), 10),
             ]))
-            story.append(note_table)
+            story.append(nt)
             story.append(Spacer(1, 10))
-        
-        # Horizontaler Trennstrich am Ende
+
         story.append(Spacer(1, 5))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.grey, spaceAfter=10))
-        
-        # Seitenumbruch nach jedem Gen (außer beim letzten)
-        if gene != st.session_state.genes[-1]:
+
+        if pair_idx < len(gene_pairs) - 1:
             story.append(PageBreak())
-    
-    # === LETZTE SEITE: DOKUMENTATIONSINFORMATIONEN ===
+
+    # Letzte Seite: Dokumentationsinfos (unverändert)
     story.append(PageBreak())
-    
     story.append(Spacer(1, 50))
-    info_title_style = ParagraphStyle(
-        'InfoTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        textColor=colors.HexColor('#1f77b4'),
-        spaceAfter=30,
-        alignment=TA_CENTER
-    )
+    info_title_style = ParagraphStyle('InfoTitle', parent=styles['Heading1'],
+                                      fontSize=16, textColor=colors.HexColor('#1f77b4'),
+                                      spaceAfter=30, alignment=TA_CENTER)
     story.append(Paragraph("Dokumentationsinformationen", info_title_style))
-    
-    info_style = ParagraphStyle(
-        'InfoText',
-        parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=12,
-        alignment=TA_LEFT
-    )
-    
+    info_style = ParagraphStyle('InfoText', parent=styles['Normal'], fontSize=10, spaceAfter=12)
     story.append(Paragraph("<b>Generiert mit:</b>", info_style))
     story.append(Paragraph("Expertenreview gNBS App", info_style))
     story.append(Paragraph(f"Version: {get_app_version()}", info_style))
     story.append(Spacer(1, 20))
-    
     story.append(Paragraph("<b>Erstellungsdatum:</b>", info_style))
     story.append(Paragraph(f"{datetime.now().strftime('%d.%m.%Y um %H:%M Uhr')}", info_style))
     story.append(Spacer(1, 20))
-    
     story.append(Paragraph("<b>Repository:</b>", info_style))
     story.append(Paragraph(f"{GITHUB_REPO}", info_style))
     story.append(Spacer(1, 20))
-    
     story.append(Paragraph("<b>Beschreibung:</b>", info_style))
     story.append(Paragraph(
         "Diese Dokumentation wurde automatisch durch die Expertenreview gNBS App erstellt. "
@@ -1355,32 +1248,6 @@ def generate_pdf():
         "das genomische Neugeborenenscreening basierend auf Expertenmeinungen.",
         info_style
     ))
-    story.append(Spacer(1, 30))
-    
-    tech_data = [[
-        "Technische Details:\n"
-        "• Python-basierte Streamlit-Anwendung\n"
-        "• PDF-Generierung mit ReportLab\n"
-        "• Datenvisualisierung mit Plotly\n"
-        "• CSV-Import/Export-Funktionalität"
-    ]]
-    tech_table = Table(tech_data, colWidths=[5*inch])
-    tech_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8f9fa')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#333333')),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('TOPPADDING', (0, 0), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ('LEFTPADDING', (0, 0), (-1, -1), 15),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-        ('ROUNDEDCORNERS', [5, 5, 5, 5]),
-        ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#e0e0e0')),
-    ]))
-    story.append(tech_table)
-    
-    # PDF erstellen mit custom canvas
     doc.build(story, canvasmaker=PageNumCanvas)
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
@@ -1389,107 +1256,108 @@ def generate_pdf():
 # Sidebar Export
 if st.session_state.summary_df is not None and st.session_state.review_started:
     st.sidebar.markdown("### 📥 Export")
-    
+
+    # PATCH: user_comments und gene_decisions haben (gene, disease) Tupel als Keys
     num_comments = len([c for c in st.session_state.user_comments.values() if c.strip()])
-    total_genes = len(st.session_state.genes)
-    
-    st.sidebar.caption(f"💬 {num_comments}/{total_genes} Gene mit Notizen")
-    
-    decided_genes = {gene: decision for gene, decision in st.session_state.gene_decisions.items() 
-                     if decision and decision != 'Noch nicht bewertet'}
-    
-    if decided_genes:
+    total_pairs  = len(st.session_state.gene_pairs)
+    st.sidebar.caption(f"💬 {num_comments}/{total_pairs} Kombinationen mit Notizen")
+
+    decided = {k: v for k, v in st.session_state.gene_decisions.items()
+               if v and v != 'Noch nicht bewertet'}
+    if decided:
         with st.sidebar.expander("📋 Bewertete Gene", expanded=False):
-            for gene, decision in decided_genes.items():
-                emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢', '🟡', '🔴', '⚪'] else '✓'
-                st.caption(f"{emoji} *{gene}*")
-    
+            for (gene, disease), decision in decided.items():
+                emoji = decision.split(' ')[0] if decision.split(' ')[0] in ['🟢','🟡','🔴','⚪'] else '✓'
+                disease_short = disease[:30] + '…' if len(disease) > 30 else disease
+                st.caption(f"{emoji} *{gene}* – {disease_short}")
+
     today = datetime.now().strftime("%Y%m%d")
-    
     st.sidebar.download_button(
-        label=f'📊 CSV Zusammenfassung',
+        label='📊 CSV Zusammenfassung',
         data=generate_csv(),
         file_name=f'gNBS_Expertenreview_Zusammenfassung_{today}.csv',
-        mime='text/csv',
-        key='download_csv',
-        use_container_width=True
+        mime='text/csv', key='download_csv', use_container_width=True
     )
-    
     st.sidebar.download_button(
-        label=f'📄 PDF Dokumentation',
+        label='📄 PDF Dokumentation',
         data=generate_pdf(),
         file_name=f'gNBS_Expertenreview_Dokumentation_{today}.pdf',
-        mime='application/pdf',
-        key='download_pdf',
-        use_container_width=True
+        mime='application/pdf', key='download_pdf', use_container_width=True
     )
-    
+
     st.sidebar.markdown("---")
     st.sidebar.markdown(f"**Gesamt:** {st.session_state.total_responses} Responses")
-    
+
     preview_df = st.session_state.summary_df[['Gen', 'Erkrankung', 'National_Ja_pct', 'Studie_Ja_pct', 'National_80']].copy()
-    preview_df['💬'] = preview_df['Gen'].apply(
-        lambda gene: '✓' if st.session_state.user_comments.get(gene, '').strip() else ''
+    preview_df['💬'] = st.session_state.summary_df['_key'].apply(
+        lambda k: '✓' if st.session_state.user_comments.get(k, '').strip() else ''
     )
     preview_df.index = range(1, len(preview_df) + 1)
     st.sidebar.dataframe(preview_df, use_container_width=True, height=300)
 
 
-# Tabs (Visualisierung mit erweiterter Anzeige)
+# === REVIEW TABS ===
 if st.session_state.df is not None and st.session_state.review_started:
-    df = st.session_state.df
-    
-    tabs = st.tabs([f"*{gene}*" for gene in st.session_state.genes])
-    
+    df             = st.session_state.df
+    gene_pairs     = st.session_state.gene_pairs
+    gene_col_index = st.session_state.gene_col_index
+
+    # PATCH: Tab-Labels zeigen "GENE · Erkrankung (gekürzt)"
+    def make_tab_label(gene, disease):
+        MAX_DISEASE = 28
+        d_short = disease[:MAX_DISEASE] + '…' if len(disease) > MAX_DISEASE else disease
+        return f"*{gene}* · {d_short}"
+
+    tabs = st.tabs([make_tab_label(g, d) for (g, d) in gene_pairs])
+
     for tab_idx, tab in enumerate(tabs):
         with tab:
-            gene = st.session_state.genes[tab_idx]
-            disease = st.session_state.gene_dict.get(gene, '')
-            
-            gene_escaped = gene.replace("'", "\\'")
+            gene, disease = gene_pairs[tab_idx]
+            key = (gene, disease)
+            cols = gene_col_index.get(key, {'nat_q':[], 'nat_kom':[], 'wiss_q':[], 'wiss_kom':[]})
+
             disease_display = disease[:1].upper() + disease[1:] if disease else ''
-            disease_escaped = disease_display.replace("'", "\\'")
-            
-            # Prüfe ob Gen in NBS oder NGS2025
-            overlap_group = st.session_state.nbs_overlap.get(gene, None)
+            overlap_group   = st.session_state.nbs_overlap.get(gene, None)
+
             badge_html = ""
             if overlap_group == "NBS":
                 badge_html = "<span style='background:#2196F3; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; margin-left:8px;'>✓ NBS</span>"
             elif overlap_group == "NGS2025":
                 badge_html = "<span style='background:#FF9800; color:white; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; margin-left:8px;'>🔬 NGS2025</span>"
-            
+
+            # Warnung wenn wiss-Spalten fehlen
+            if not cols['wiss_q']:
+                st.warning(f"⚠️ Keine Spalte für *Wissenschaftliche Studie* gefunden – Genname in LimeSurvey prüfen (`{gene}`).")
+
             nav_html = f"""
-            <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%); 
-                        padding: 8px 12px; 
-                        border-radius: 8px; 
-                        border-left: 4px solid #4CAF50;
+            <div style='background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%);
+                        padding: 8px 12px; border-radius: 8px; border-left: 4px solid #4CAF50;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                         font-family: "Source Sans Pro", "Segoe UI", Arial, sans-serif;'>
                 <div style='display: flex; align-items: center; gap: 10px;'>
-                    <button id="btn-prev" style='
-                        background: none; border: 1px solid #c8e6c9; border-radius: 5px;
-                        padding: 3px 9px; cursor: pointer; color: #4CAF50; font-size: 12px;
-                        line-height: 1; flex-shrink: 0;'>&#9664;</button>
-                    <div style='background: #4CAF50; color: white; padding: 4px 10px; 
+                    <button id="btn-prev" style='background: none; border: 1px solid #c8e6c9;
+                        border-radius: 5px; padding: 3px 9px; cursor: pointer;
+                        color: #4CAF50; font-size: 12px; line-height: 1; flex-shrink: 0;'>&#9664;</button>
+                    <div style='background: #4CAF50; color: white; padding: 4px 10px;
                                 border-radius: 5px; font-weight: 700; font-size: 13px;
-                                font-style: italic; flex-shrink: 0; white-space: nowrap;'>
-                        {gene}
-                    </div>
-                    <a href='https://omim.org/search?index=entry&search={gene}&filter=gene' 
-                       target='_blank' 
-                       style='flex: 1; color: #666; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.4;'
+                                font-style: italic; flex-shrink: 0; white-space: nowrap;'>{gene}</div>
+                    <a href='https://omim.org/search?index=entry&search={gene}&filter=gene'
+                       target='_blank'
+                       style='flex: 1; color: #666; font-size: 13px; font-weight: 600;
+                              text-decoration: none; display: flex; align-items: center;
+                              gap: 8px; flex-wrap: wrap; line-height: 1.4;'
                        onmouseover="this.style.textDecoration='underline'"
                        onmouseout="this.style.textDecoration='none'">
                        <span style='flex: 1; min-width: 200px;'>{disease_display}</span>
                        {badge_html}
                     </a>
-                    <div style='color: #999; font-size: 11px; font-weight: 500; flex-shrink: 0; white-space: nowrap;'>
-                        Gen {tab_idx + 1} von {len(st.session_state.genes)}
+                    <div style='color: #999; font-size: 11px; font-weight: 500;
+                                flex-shrink: 0; white-space: nowrap;'>
+                        {tab_idx + 1} / {len(gene_pairs)}
                     </div>
-                    <button id="btn-next" style='
-                        background: none; border: 1px solid #c8e6c9; border-radius: 5px;
-                        padding: 3px 9px; cursor: pointer; color: #4CAF50; font-size: 12px;
-                        line-height: 1; flex-shrink: 0;'>&#9654;</button>
+                    <button id="btn-next" style='background: none; border: 1px solid #c8e6c9;
+                        border-radius: 5px; padding: 3px 9px; cursor: pointer;
+                        color: #4CAF50; font-size: 12px; line-height: 1; flex-shrink: 0;'>&#9654;</button>
                 </div>
             </div>
             <script>
@@ -1511,265 +1379,195 @@ if st.session_state.df is not None and st.session_state.review_started:
             </script>
             """
             st.components.v1.html(nav_html, height=60)
-            
-            nat_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' not in col]
-            nat_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'nationalen' in col and '[Kommentar]' in col]
-            stud_q_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' not in col]
-            stud_kom_cols = [col for col in df.columns if f'Gen: {gene}  Erkrankung:' in col and 'wissenschaftlicher' in col and '[Kommentar]' in col]
 
-            options = ['Ja', 'Nein', 'Ich kann diese Frage nicht beantworten']
-            
-            # Hauptlayout: Überschriften-Zeile
             h1, h2, h3 = st.columns([1, 1, 1])
-            with h1:
-                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Nationales Screening</h4>", unsafe_allow_html=True)
-            with h2:
-                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
-            with h3:
-                st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Bewertung</h4>", unsafe_allow_html=True)
+            with h1: st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Nationales Screening</h4>", unsafe_allow_html=True)
+            with h2: st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Wissenschaftliche Studie</h4>", unsafe_allow_html=True)
+            with h3: st.markdown("<h4 style='margin-top:0; margin-bottom:4px;'>Bewertung</h4>", unsafe_allow_html=True)
 
-            # Hauptlayout: Links Abbildungen, Rechts Kommentarfeld
             viz_col, comment_col = st.columns([2, 1])
-            
+
             with viz_col:
                 left_col, right_col = st.columns(2)
-                
+                chart_colors = ['#ACF3AE', '#C43D5A', '#DDDDDD']
+                labels = ['Ja', 'Nein', 'NA']
+
                 with left_col:
-                    nat_data = df[nat_q_cols].stack().dropna()
-                    n_total = len(nat_data)
-                    
-                    colors_chart = ['#ACF3AE', '#C43D5A', '#DDDDDD']
-                    labels = ['Ja', 'Nein', 'NA']
-                    values = [
-                        (nat_data == 'Ja').sum(),
-                        (nat_data == 'Nein').sum(),
-                        (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
-                    ]
-                    
+                    # PATCH: Spalten aus gene_col_index
+                    nat_data = df[cols['nat_q']].stack().dropna() if cols['nat_q'] else pd.Series(dtype=str)
+                    n_total  = len(nat_data)
+                    values   = [(nat_data == 'Ja').sum(),
+                                (nat_data == 'Nein').sum(),
+                                (nat_data == 'Ich kann diese Frage nicht beantworten').sum()]
                     fig_nat = go.Figure(data=[go.Pie(
-                        labels=labels,
-                        values=values,
-                        marker=dict(colors=colors_chart),
-                        textinfo='percent',
-                        textfont_size=12,
-                        hole=0.5
+                        labels=labels, values=values,
+                        marker=dict(colors=chart_colors),
+                        textinfo='percent', textfont_size=12, hole=0.5
                     )])
-                    fig_nat.update_layout(
-                        height=250,
-                        margin=dict(t=0, b=0, l=0, r=0),
-                        showlegend=False,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-                    )
-                    st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{tab_idx}')
-                    
-                    ja_count = (nat_data == 'Ja').sum()
-                    nein_count = (nat_data == 'Nein').sum()
-                    weiss_nicht_count = (nat_data == 'Ich kann diese Frage nicht beantworten').sum()
-                    ja_pct = ja_count / n_total * 100 if n_total > 0 else 0
-                    
+                    fig_nat.update_layout(height=250, margin=dict(t=0,b=0,l=0,r=0), showlegend=False)
+                    st.plotly_chart(fig_nat, use_container_width=True, key=f'nat_viz_{gene}_{disease}_{tab_idx}')
+                    ja_pct = values[0] / n_total * 100 if n_total > 0 else 0
                     st.markdown(f"""<div style='font-size:11px; color:#555; line-height:1.4; margin-top:2px;'>
                         <b>Gesamt:</b> n={n_total}<br>
-                        Ja: {ja_count} | Nein: {nein_count} | NA: {weiss_nicht_count}<br>
+                        Ja: {values[0]} | Nein: {values[1]} | NA: {values[2]}<br>
                         Cut-Off: {"✅ ≥80%" if ja_pct >= 80 else "❌ <80%"}
                     </div>""", unsafe_allow_html=True)
 
                 with right_col:
-                    stud_data = df[stud_q_cols].stack().dropna()
+                    # PATCH: Spalten aus gene_col_index
+                    stud_data = df[cols['wiss_q']].stack().dropna() if cols['wiss_q'] else pd.Series(dtype=str)
                     n_total_stud = len(stud_data)
-                    
-                    values_stud = [
-                        (stud_data == 'Ja').sum(),
-                        (stud_data == 'Nein').sum(),
-                        (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
-                    ]
-                    
-                    fig_stud = go.Figure(data=[go.Pie(
-                        labels=labels,
-                        values=values_stud,
-                        marker=dict(colors=colors_chart),
-                        textinfo='percent',
-                        textfont_size=12,
-                        hole=0.5
-                    )])
-                    fig_stud.update_layout(
-                        height=250,
-                        margin=dict(t=0, b=0, l=0, r=0),
-                        showlegend=False,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-                    )
-                    st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{tab_idx}')
-                    
-                    ja_count_stud = (stud_data == 'Ja').sum()
-                    nein_count_stud = (stud_data == 'Nein').sum()
-                    weiss_nicht_count_stud = (stud_data == 'Ich kann diese Frage nicht beantworten').sum()
-                    ja_pct_stud = ja_count_stud / n_total_stud * 100 if n_total_stud > 0 else 0
-                    
-                    st.markdown(f"""<div style='font-size:11px; color:#555; line-height:1.4; margin-top:2px;'>
-                        <b>Gesamt:</b> n={n_total_stud}<br>
-                        Ja: {ja_count_stud} | Nein: {nein_count_stud} | NA: {weiss_nicht_count_stud}<br>
-                        Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}
-                    </div>""", unsafe_allow_html=True)
 
-                # Legende
+                    if n_total_stud > 0:
+                        values_stud = [(stud_data == 'Ja').sum(),
+                                       (stud_data == 'Nein').sum(),
+                                       (stud_data == 'Ich kann diese Frage nicht beantworten').sum()]
+                        fig_stud = go.Figure(data=[go.Pie(
+                            labels=labels, values=values_stud,
+                            marker=dict(colors=chart_colors),
+                            textinfo='percent', textfont_size=12, hole=0.5
+                        )])
+                        fig_stud.update_layout(height=250, margin=dict(t=0,b=0,l=0,r=0), showlegend=False)
+                        st.plotly_chart(fig_stud, use_container_width=True, key=f'stud_viz_{gene}_{disease}_{tab_idx}')
+                        ja_pct_stud = values_stud[0] / n_total_stud * 100
+                        st.markdown(f"""<div style='font-size:11px; color:#555; line-height:1.4; margin-top:2px;'>
+                            <b>Gesamt:</b> n={n_total_stud}<br>
+                            Ja: {values_stud[0]} | Nein: {values_stud[1]} | NA: {values_stud[2]}<br>
+                            Cut-Off: {"✅ ≥80%" if ja_pct_stud >= 80 else "❌ <80%"}
+                        </div>""", unsafe_allow_html=True)
+                    else:
+                        # PATCH: Klarer Hinweis statt leerem Donut
+                        st.markdown("""<div style='height:250px; display:flex; align-items:center;
+                            justify-content:center; background:#fff8f0;
+                            border:1px dashed #FFC107; border-radius:8px;'>
+                            <div style='text-align:center; color:#F57F17; font-size:12px;'>
+                                ⚠️ Keine Daten<br>
+                                <span style='font-size:10px; color:#999;'>Spalte nicht gefunden</span>
+                            </div>
+                        </div>""", unsafe_allow_html=True)
+                        st.markdown("<div style='font-size:11px; color:#aaa; line-height:1.4; margin-top:2px;'>Gesamt: n=0</div>", unsafe_allow_html=True)
+
                 st.markdown("""
-                <div style='background-color: transparent; padding: 8px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; border: 1px solid #e0e0e0;'>
+                <div style='background-color: transparent; padding: 8px; border-radius: 5px;
+                            margin-top: 10px; margin-bottom: 10px; border: 1px solid #e0e0e0;'>
                     <span style='font-size: 12px; font-weight: 600;'>Legende:</span>
                     <span style='background-color: #ACF3AE; padding: 2px 8px; border-radius: 3px; margin-left: 10px; font-size: 11px;'>Ja</span>
                     <span style='background-color: #C43D5A; color: white; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Nein</span>
                     <span style='background-color: #DDDDDD; padding: 2px 8px; border-radius: 3px; margin-left: 5px; font-size: 11px;'>Kann ich nicht beantworten</span>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Prospective Studies Info
+
+                # Prospective Studies (unverändert, Lookup per Genname)
                 studies = st.session_state.prospective_studies
-                
-                babyscreen_disorder = studies['BabyScreen+'].get(gene, None)
-                guardian_disorder = studies['Guardian'].get(gene, None)
-                generation_disorder = studies['Generation Study'].get(gene, None)
-                beacons_disorder = studies['Beacons'].get(gene, None)
-                
                 study_html_parts = []
-                for idx, (study_name, disorder) in enumerate([
-                    ('BabyScreen+', babyscreen_disorder),
-                    ('Guardian', guardian_disorder),
-                    ('Generation Study', generation_disorder),
-                    ('Beacons', beacons_disorder)
+                for s_idx, (study_name, disorder) in enumerate([
+                    ('BabyScreen+',    studies['BabyScreen+'].get(gene, None)),
+                    ('Guardian',       studies['Guardian'].get(gene, None)),
+                    ('Generation Study', studies['Generation Study'].get(gene, None)),
+                    ('Beacons',        studies['Beacons'].get(gene, None))
                 ]):
                     if disorder:
-                        icon = "✓"
-                        color = "#4CAF50"
+                        icon, color = "✓", "#4CAF50"
                         tooltip = f"{gene}: {disorder}"
                     else:
-                        icon = "✗"
-                        color = "#999"
+                        icon, color = "✗", "#999"
                         tooltip = f"{gene} nicht in {study_name}"
-                    
-                    tooltip_escaped = tooltip.replace('"', '&quot;').replace("'", '&#39;')
-                    
+                    tooltip_esc = tooltip.replace('"','&quot;').replace("'",'&#39;')
                     study_html_parts.append(
-                        f"<span class='study-item study-{idx}' data-tooltip='{tooltip_escaped}' style='display: inline-block; margin-right: 12px; position: relative; cursor: help;'>"
-                        f"<span style='color: {color}; font-weight: 700; margin-right: 3px;'>{icon}</span>"
-                        f"<span style='font-size: 11px; color: #666;'>{study_name}</span>"
-                        f"</span>"
+                        f"<span class='study-item study-{s_idx}' data-tooltip='{tooltip_esc}' "
+                        f"style='display:inline-block; margin-right:12px; position:relative; cursor:help;'>"
+                        f"<span style='color:{color}; font-weight:700; margin-right:3px;'>{icon}</span>"
+                        f"<span style='font-size:11px; color:#666;'>{study_name}</span></span>"
                     )
-                
-                studies_html = ''.join(study_html_parts)
-                
-                st.markdown(
-                    f"""
+                st.markdown(f"""
                     <style>
                     .study-item::after {{
-                        content: attr(data-tooltip);
-                        position: absolute;
-                        bottom: 100%;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        background: #333;
-                        color: white;
-                        padding: 6px 10px;
-                        border-radius: 4px;
-                        font-size: 11px;
-                        white-space: nowrap;
-                        opacity: 0;
-                        pointer-events: none;
-                        transition: opacity 0.2s;
-                        margin-bottom: 5px;
-                        z-index: 1000;
+                        content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%;
+                        transform: translateX(-50%); background: #333; color: white;
+                        padding: 6px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap;
+                        opacity: 0; pointer-events: none; transition: opacity 0.2s;
+                        margin-bottom: 5px; z-index: 1000;
                     }}
-                    .study-item:hover::after {{
-                        opacity: 1;
-                    }}
+                    .study-item:hover::after {{ opacity: 1; }}
                     </style>
-                    <div style='background-color: #f8f9fa; padding: 8px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #e0e0e0;'>
-                    <span style='font-size: 12px; font-weight: 600; margin-right: 10px;'>Prospektive Studien:</span>
-                    {studies_html}
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                    <div style='background-color:#f8f9fa; padding:8px; border-radius:5px;
+                                margin-bottom:15px; border:1px solid #e0e0e0;'>
+                    <span style='font-size:12px; font-weight:600; margin-right:10px;'>Prospektive Studien:</span>
+                    {''.join(study_html_parts)}
+                    </div>""", unsafe_allow_html=True)
 
-            # Rechte Spalte: Bewertung und optionales Kommentarfeld
             with comment_col:
-                st.markdown("""
-                <div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>
-                """, unsafe_allow_html=True)
-                
+                st.markdown("<div style='border-left: 3px solid #4CAF50; padding-left: 15px; margin-left: 10px;'>", unsafe_allow_html=True)
+
                 decision_options = [
                     'Noch nicht bewertet',
                     '🟢 Aufnahme in nationales gNBS',
-                    '🟡 Aufnahme in wissenschaftliche gNBS Studie', 
+                    '🟡 Aufnahme in wissenschaftliche gNBS Studie',
                     '🔴 Keine Berücksichtigung im gNBS',
                     '⚪ Weitere Diskussion erforderlich'
                 ]
-                
-                current_decision = st.session_state.gene_decisions.get(gene, 'Noch nicht bewertet')
-                
+                # PATCH: Lookup/Speicherung per (gene, disease) Tupel
+                current_decision = st.session_state.gene_decisions.get(key, 'Noch nicht bewertet')
                 decision = st.selectbox(
-                    'Empfehlung',
-                    options=decision_options,
+                    'Empfehlung', options=decision_options,
                     index=decision_options.index(current_decision) if current_decision in decision_options else 0,
-                    key=f'decision_{gene}_{tab_idx}',
+                    key=f'decision_{gene}_{disease}_{tab_idx}',
                     label_visibility='collapsed'
                 )
-                
-                st.session_state.gene_decisions[gene] = decision
-                
+                st.session_state.gene_decisions[key] = decision
+
                 st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-                
-                st.markdown("<h4 style='margin-top: 0px; margin-bottom: 8px; font-size: 13px; color: #666;'>Zusätzliche Notizen (optional)</h4>", unsafe_allow_html=True)
-                
-                current_comment = st.session_state.user_comments.get(gene, '')
-                
+                st.markdown("<h4 style='margin-top:0px; margin-bottom:8px; font-size:13px; color:#666;'>Zusätzliche Notizen (optional)</h4>", unsafe_allow_html=True)
+
+                # PATCH: Lookup/Speicherung per (gene, disease) Tupel
+                current_comment = st.session_state.user_comments.get(key, '')
                 user_comment = st.text_area(
-                    f"Notizen_{gene}",
-                    value=current_comment,
-                    height=180,
-                    key=f'comment_input_{gene}_{tab_idx}',
+                    f"Notizen_{gene}_{disease}",
+                    value=current_comment, height=180,
+                    key=f'comment_input_{gene}_{disease}_{tab_idx}',
                     placeholder="Hier können Sie zusätzliche Anmerkungen, Begründungen oder Diskussionspunkte dokumentieren...",
                     label_visibility="collapsed"
                 )
-                
                 col_save, col_clear = st.columns(2)
                 with col_save:
-                    if st.button('💾 Speichern', key=f'save_{gene}_{tab_idx}', use_container_width=True):
-                        st.session_state.user_comments[gene] = user_comment
+                    if st.button('💾 Speichern', key=f'save_{gene}_{disease}_{tab_idx}', use_container_width=True):
+                        st.session_state.user_comments[key] = user_comment
                 with col_clear:
-                    if st.button('🗑️ Löschen', key=f'clear_{gene}_{tab_idx}', use_container_width=True):
-                        st.session_state.user_comments[gene] = ''
-                
-                if gene in st.session_state.user_comments and st.session_state.user_comments[gene]:
-                    st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[gene])} Zeichen')
-                
+                    if st.button('🗑️ Löschen', key=f'clear_{gene}_{disease}_{tab_idx}', use_container_width=True):
+                        st.session_state.user_comments[key] = ''
+
+                if st.session_state.user_comments.get(key, ''):
+                    st.caption(f'💬 Gespeichert: {len(st.session_state.user_comments[key])} Zeichen')
+
                 if decision != 'Noch nicht bewertet':
                     st.markdown(f"""
-                    <div style='margin-top: 15px; padding: 10px; background-color: #f0f7f0; border-radius: 6px; border-left: 3px solid #4CAF50;'>
-                        <div style='font-size: 11px; color: #666; margin-bottom: 4px;'>Aktuelle Bewertung:</div>
-                        <div style='font-size: 13px; font-weight: 600; color: #333;'>{decision}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    <div style='margin-top:15px; padding:10px; background-color:#f0f7f0;
+                                border-radius:6px; border-left:3px solid #4CAF50;'>
+                        <div style='font-size:11px; color:#666; margin-bottom:4px;'>Aktuelle Bewertung:</div>
+                        <div style='font-size:13px; font-weight:600; color:#333;'>{decision}</div>
+                    </div>""", unsafe_allow_html=True)
+
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # Kommentare mit Expander
-            st.markdown("<h4 style='font-size: 17px; margin-top: 20px;'>Kommentare aus Umfrage</h4>", unsafe_allow_html=True)
-            nat_comments = [str(c) for c in df[nat_kom_cols].stack().dropna() if str(c).strip()]
-            stud_comments = [str(c) for c in df[stud_kom_cols].stack().dropna() if str(c).strip()]
-            
+            st.markdown("<h4 style='font-size:17px; margin-top:20px;'>Kommentare aus Umfrage</h4>", unsafe_allow_html=True)
+            # PATCH: Spalten aus gene_col_index
+            nat_comments  = [str(c) for c in df[cols['nat_kom']].stack().dropna()  if str(c).strip()] if cols['nat_kom']  else []
+            stud_comments = [str(c) for c in df[cols['wiss_kom']].stack().dropna() if str(c).strip()] if cols['wiss_kom'] else []
+
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown(f"**National:** ({len(nat_comments)} Kommentare)")
                 if nat_comments:
                     with st.expander(f"Alle {len(nat_comments)} Kommentare anzeigen", expanded=True):
-                        for idx, c in enumerate(nat_comments, 1):
-                            st.caption(f"{idx}. {c}")
+                        for i, c in enumerate(nat_comments, 1):
+                            st.caption(f"{i}. {c}")
                 else:
                     st.caption("Keine Kommentare")
-                    
             with c2:
                 st.markdown(f"**Studie:** ({len(stud_comments)} Kommentare)")
                 if stud_comments:
                     with st.expander(f"Alle {len(stud_comments)} Kommentare anzeigen", expanded=True):
-                        for idx, c in enumerate(stud_comments, 1):
-                            st.caption(f"{idx}. {c}")
+                        for i, c in enumerate(stud_comments, 1):
+                            st.caption(f"{i}. {c}")
                 else:
                     st.caption("Keine Kommentare")
