@@ -85,7 +85,7 @@ h4 { font-size: 15px !important; }
 .caption { font-size: 11px !important; }
 
 /* Verbesserte Tab-Navigation */
-[data-baseweb="tab-list"] {
+[role="tablist"] {
     gap: 3px;
     background-color: #f8f9fa;
     padding: 5px 6px;
@@ -93,10 +93,10 @@ h4 { font-size: 15px !important; }
 }
 
 /* Fade-out Effekt entfernen - alle möglichen Pseudo-Elemente überschreiben */
-[data-baseweb="tab-list"] *::after,
-[data-baseweb="tab-list"] *::before,
-[data-baseweb="tab-list"]::after,
-[data-baseweb="tab-list"]::before {
+[role="tablist"] *::after,
+[role="tablist"] *::before,
+[role="tablist"]::after,
+[role="tablist"]::before {
     background: #f8f9fa !important;
     background-image: none !important;
     -webkit-mask-image: none !important;
@@ -122,7 +122,7 @@ h4 { font-size: 15px !important; }
     display: none;
 }
 
-[data-baseweb="tab"] {
+[data-testid="stTab"] {
     border-radius: 6px;
     padding: 1px 6px !important;
     min-height: 0 !important;
@@ -133,18 +133,18 @@ h4 { font-size: 15px !important; }
     transition: all 0.2s ease;
 }
 
-[data-baseweb="tab"] > div {
+[data-testid="stTab"] > div {
     padding: 0 !important;
     margin: 0 !important;
     line-height: 1.4 !important;
 }
 
-[data-baseweb="tab"]:hover {
+[data-testid="stTab"]:hover {
     background-color: #f0f0f0;
     border-color: #4CAF50;
 }
 
-[aria-selected="true"][data-baseweb="tab"] {
+[aria-selected="true"][data-testid="stTab"] {
     background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
     color: white !important;
     border: 1px solid #3d8b40;
@@ -153,20 +153,20 @@ h4 { font-size: 15px !important; }
     transform: translateY(-0.5px);
 }
 
-[aria-selected="true"][data-baseweb="tab"] p {
+[aria-selected="true"][data-testid="stTab"] p {
     color: white !important;
 }
 
 /* Normaler Cursor für Dropdowns */
-[data-baseweb="select"] {
+[data-testid="stSelectbox"] {
     cursor: pointer !important;
 }
 
-[data-baseweb="select"] input {
+[data-testid="stSelectbox"] input {
     cursor: pointer !important;
 }
 
-div[data-baseweb="select"] > div {
+div[data-testid="stSelectbox"] > div {
     cursor: pointer !important;
 }
 </style>
@@ -174,7 +174,7 @@ div[data-baseweb="select"] > div {
 <script>
 // ===== TAB-NAVIGATION PER KLICK =====
 function navigateTab(direction) {
-    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    const tabs = document.querySelectorAll('[data-testid="stTab"]');
     if (tabs.length === 0) return;
     let activeIndex = -1;
     tabs.forEach((tab, index) => {
@@ -188,7 +188,7 @@ function navigateTab(direction) {
 
 // ===== TAB-HÖHE PER JAVASCRIPT ERZWINGEN =====
 function resizeTabs() {
-    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    const tabs = document.querySelectorAll('[data-testid="stTab"]');
     tabs.forEach(tab => {
         tab.style.setProperty('padding', '1px 6px', 'important');
         tab.style.setProperty('min-height', '0', 'important');
@@ -199,7 +199,7 @@ function resizeTabs() {
             el.style.setProperty('line-height', '1.4', 'important');
         });
     });
-    const tabLists = document.querySelectorAll('[data-baseweb="tab-list"]');
+    const tabLists = document.querySelectorAll('[role="tablist"]');
     tabLists.forEach(list => {
         list.style.setProperty('padding', '4px 6px', 'important');
     });
@@ -229,7 +229,7 @@ document.addEventListener('keydown', function(e) {
         return;
     }
     
-    const tabs = document.querySelectorAll('[data-baseweb="tab"]');
+    const tabs = document.querySelectorAll('[data-testid="stTab"]');
     if (tabs.length === 0) return;
     
     let activeIndex = -1;
@@ -1495,7 +1495,7 @@ if st.session_state.df is not None and st.session_state.review_started:
             <script>
             function navTab(dir) {{
                 var doc = window.parent.document;
-                var tabs = doc.querySelectorAll('[data-baseweb="tab"]');
+                var tabs = doc.querySelectorAll('[data-testid="stTab"]');
                 if (!tabs.length) return;
                 var active = -1;
                 tabs.forEach(function(t, i) {{
