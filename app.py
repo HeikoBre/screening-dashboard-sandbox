@@ -386,13 +386,23 @@ if 'selected_attendees' not in st.session_state: st.session_state.selected_atten
 if 'disease_groups_list' not in st.session_state: st.session_state.disease_groups_list = None
 if 'selected_disease_group' not in st.session_state: st.session_state.selected_disease_group = None
 
+# Lade Datei aus lokalem docs/-Ordner, Fallback: GitHub-Repository
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
+
+def read_docs_file(url):
+    local_path = os.path.join(DOCS_DIR, url.rsplit('/', 1)[-1])
+    if os.path.exists(local_path):
+        with open(local_path, 'rb') as f:
+            return f.read()
+    import urllib.request
+    return urllib.request.urlopen(url).read()
+
 # Lade Namen/Kürzel beim ersten Start
 if st.session_state.attendees_list is None:
     try:
         import urllib.request
         names_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/names.csv"
-        response = urllib.request.urlopen(names_url)
-        names_content = response.read().decode('utf-8-sig')
+        names_content = read_docs_file(names_url).decode('utf-8-sig')
         names_df = pd.read_csv(io.StringIO(names_content))
         st.session_state.attendees_list = dict(zip(names_df['Name'], names_df['Kürzel']))
     except Exception as e:
@@ -403,8 +413,7 @@ if st.session_state.disease_groups_list is None:
     try:
         import urllib.request
         groups_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/disease_groups.csv"
-        response = urllib.request.urlopen(groups_url)
-        groups_content = response.read().decode('utf-8-sig')
+        groups_content = read_docs_file(groups_url).decode('utf-8-sig')
         groups_df = pd.read_csv(io.StringIO(groups_content))
         st.session_state.disease_groups_list = groups_df['Gruppe'].dropna().tolist()
     except Exception as e:
@@ -419,8 +428,7 @@ if st.session_state.nbs_overlap is None:
     try:
         import urllib.request
         overlap_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/Overlap_annotated_NBS.csv"
-        response = urllib.request.urlopen(overlap_url)
-        overlap_content = response.read().decode('utf-8-sig')
+        overlap_content = read_docs_file(overlap_url).decode('utf-8-sig')
         overlap_df = pd.read_csv(io.StringIO(overlap_content), sep=';')
         st.session_state.nbs_overlap = dict(zip(overlap_df['Gene'], overlap_df['Group']))
     except Exception as e:
@@ -431,8 +439,7 @@ if st.session_state.prospective_studies is None:
     try:
         import urllib.request
         studies_url = "https://raw.githubusercontent.com/HeikoBre/screening-dashboard-sandbox/main/docs/Prospective_studies.xlsx"
-        response = urllib.request.urlopen(studies_url)
-        excel_data = io.BytesIO(response.read())
+        excel_data = io.BytesIO(read_docs_file(studies_url))
         babyscreen_df = pd.read_excel(excel_data, sheet_name='BabyScreen+', engine='openpyxl')
         excel_data.seek(0)
         guardian_df = pd.read_excel(excel_data, sheet_name='Guardian', engine='openpyxl')
@@ -474,8 +481,7 @@ if st.session_state.df is None:
             url = f"{DUMMY_BASE}/dummy_survey_data.csv"
             with st.spinner("Lade Dummy-Daten..."):
                 try:
-                    response = urllib.request.urlopen(url)
-                    uploaded_file = io.BytesIO(response.read())
+                    uploaded_file = io.BytesIO(read_docs_file(url))
                     uploaded_file.name = "dummy_survey_data.csv"
                 except Exception as e:
                     st.error(f"Konnte Dummy-Daten nicht laden: {e}")
@@ -486,8 +492,7 @@ if st.session_state.df is None:
             url = f"{DUMMY_BASE}/dummy_survey_20.csv"
             with st.spinner("Lade Dummy-Daten..."):
                 try:
-                    response = urllib.request.urlopen(url)
-                    uploaded_file = io.BytesIO(response.read())
+                    uploaded_file = io.BytesIO(read_docs_file(url))
                     uploaded_file.name = "dummy_survey_20.csv"
                 except Exception as e:
                     st.error(f"Konnte Dummy-Daten nicht laden: {e}")
