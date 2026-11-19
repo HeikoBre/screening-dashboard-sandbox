@@ -420,6 +420,7 @@ if st.session_state.disease_groups_list is None:
         # docs/disease_groups.csv is the single source of truth (read locally first,
         # then from GitHub via read_docs_file); no hardcoded copy to keep in sync.
         st.session_state.disease_groups_list = []
+        st.session_state.disease_groups_error = str(e)
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
@@ -733,6 +734,14 @@ if st.session_state.df is not None and not st.session_state.review_started:
     st.markdown("<small style='color:#666;'>Wählen Sie die Erkrankungsgruppe, der alle Gen-Erkrankungs-Kombinationen dieser Session zugeordnet werden:</small>", unsafe_allow_html=True)
 
     group_options  = st.session_state.disease_groups_list or []
+    if not group_options:
+        err = st.session_state.get('disease_groups_error')
+        st.warning(
+            "⚠️ Die Erkrankungsgruppen konnten nicht geladen werden "
+            "(docs/disease_groups.csv lokal und auf GitHub nicht verfügbar). "
+            "Bitte Datei prüfen und die App neu laden."
+            + (f"\n\nFehler: `{err}`" if err else "")
+        )
     group_confirmed = st.session_state.get('group_confirmed', False)
     selected_group = st.selectbox(
         "Erkrankungsgruppe",
