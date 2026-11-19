@@ -418,9 +418,11 @@ if st.session_state.disease_groups_list is None:
         st.session_state.disease_groups_list = groups_df['Gruppe'].dropna().tolist()
     except Exception as e:
         st.session_state.disease_groups_list = [
-            'Metabolisch', 'Renal', 'Kardiovaskulär', 'Hämatologisch',
-            'Immunologisch', 'Neurologisch', 'Endokrinologisch',
-            'Muskuloskelettal', 'Sonstige'
+            'metabolic', 'renal', 'endocrinology', 'immunology_rheumatology',
+            'neurology', 'oncology_hematology', 'pulmonology',
+            'tumor_predisposition', 'gastroenterology', 'otorhinolaryngology',
+            'ophthalmology', 'cardiology_neurology_oncology',
+            'oncology_immunology', 'cardiology'
         ]
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
