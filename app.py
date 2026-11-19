@@ -448,8 +448,10 @@ if st.session_state.prospective_studies is None:
             excel_data.seek(0)
             bridges_df = pd.read_excel(excel_data, sheet_name='BRIDGES-NBS', engine='openpyxl')
             bridges_dict = dict(zip(bridges_df['Gene'].astype(str), bridges_df['Disorder'].astype(str)))
-        except:
+            st.session_state.bridges_nbs_error = None
+        except Exception as e_bridges:
             bridges_dict = {}
+            st.session_state.bridges_nbs_error = str(e_bridges)
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
@@ -1471,6 +1473,19 @@ if st.session_state.df is not None and st.session_state.review_started:
 
                 # Prospective Studies (unverändert, Lookup per Genname)
                 studies = st.session_state.prospective_studies
+                if st.session_state.get('prospective_studies_error'):
+                    st.warning(
+                        "⚠️ Die prospektiven Studien konnten nicht geladen werden "
+                        "(docs/Prospective_studies.xlsx). Alle Studien werden als ✗ angezeigt."
+                        f"\n\nFehler: `{st.session_state.prospective_studies_error}`"
+                    )
+                elif st.session_state.get('bridges_nbs_error'):
+                    st.warning(
+                        "⚠️ BRIDGES-NBS konnte nicht geladen werden: Das Tabellenblatt "
+                        "„BRIDGES-NBS“ fehlt in docs/Prospective_studies.xlsx oder hat nicht die "
+                        "Spalten „Gene“ und „Disorder“. BRIDGES-NBS wird für alle Gene als ✗ angezeigt."
+                        f"\n\nFehler: `{st.session_state.bridges_nbs_error}`"
+                    )
                 study_html_parts = []
                 for s_idx, (study_name, disorder) in enumerate([
                     ('BabyScreen+',    studies['BabyScreen+'].get(gene, None)),
