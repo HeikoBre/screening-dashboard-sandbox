@@ -446,20 +446,20 @@ if st.session_state.prospective_studies is None:
         generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
         try:
             excel_data.seek(0)
-            beacons_df = pd.read_excel(excel_data, sheet_name='Beacons', engine='openpyxl')
-            beacons_dict = dict(zip(beacons_df['Gene'].astype(str), beacons_df['Disorder'].astype(str)))
+            bridges_df = pd.read_excel(excel_data, sheet_name='BRIDGES-NBS', engine='openpyxl')
+            bridges_dict = dict(zip(bridges_df['Gene'].astype(str), bridges_df['Disorder'].astype(str)))
         except:
-            beacons_dict = {}
+            bridges_dict = {}
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
             'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str))),
-            'Beacons': beacons_dict
+            'BRIDGES-NBS': bridges_dict
         }
         st.session_state.prospective_studies_error = None
     except Exception as e:
         st.session_state.prospective_studies = {
-            'BabyScreen+': {}, 'Guardian': {}, 'Generation Study': {}, 'Beacons': {}
+            'BabyScreen+': {}, 'Guardian': {}, 'Generation Study': {}, 'BRIDGES-NBS': {}
         }
         st.session_state.prospective_studies_error = str(e)
 
@@ -1476,7 +1476,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                     ('BabyScreen+',    studies['BabyScreen+'].get(gene, None)),
                     ('Guardian',       studies['Guardian'].get(gene, None)),
                     ('Generation Study', studies['Generation Study'].get(gene, None)),
-                    ('Beacons',        studies['Beacons'].get(gene, None))
+                    ('BRIDGES-NBS',    studies['BRIDGES-NBS'].get(gene, None))
                 ]):
                     if disorder:
                         icon, color = "✓", "#4CAF50"
