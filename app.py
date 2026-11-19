@@ -446,22 +446,22 @@ if st.session_state.prospective_studies is None:
         generation_df = pd.read_excel(excel_data, sheet_name='Generation Study', engine='openpyxl')
         try:
             excel_data.seek(0)
-            bridges_df = pd.read_excel(excel_data, sheet_name='BRIDGES-NBS', engine='openpyxl')
+            bridges_df = pd.read_excel(excel_data, sheet_name='BRIDGES', engine='openpyxl')
             bridges_dict = dict(zip(bridges_df['Gene'].astype(str), bridges_df['Disorder'].astype(str)))
-            st.session_state.bridges_nbs_error = None
+            st.session_state.bridges_error = None
         except Exception as e_bridges:
             bridges_dict = {}
-            st.session_state.bridges_nbs_error = str(e_bridges)
+            st.session_state.bridges_error = str(e_bridges)
         st.session_state.prospective_studies = {
             'BabyScreen+': dict(zip(babyscreen_df['Gene'].astype(str), babyscreen_df['Disorder'].astype(str))),
             'Guardian': dict(zip(guardian_df['Gene'].astype(str), guardian_df['Disorder'].astype(str))),
             'Generation Study': dict(zip(generation_df['Gene'].astype(str), generation_df['Disorder'].astype(str))),
-            'BRIDGES-NBS': bridges_dict
+            'BRIDGES': bridges_dict
         }
         st.session_state.prospective_studies_error = None
     except Exception as e:
         st.session_state.prospective_studies = {
-            'BabyScreen+': {}, 'Guardian': {}, 'Generation Study': {}, 'BRIDGES-NBS': {}
+            'BabyScreen+': {}, 'Guardian': {}, 'Generation Study': {}, 'BRIDGES': {}
         }
         st.session_state.prospective_studies_error = str(e)
 
@@ -1479,19 +1479,19 @@ if st.session_state.df is not None and st.session_state.review_started:
                         "(docs/Prospective_studies.xlsx). Alle Studien werden als ✗ angezeigt."
                         f"\n\nFehler: `{st.session_state.prospective_studies_error}`"
                     )
-                elif st.session_state.get('bridges_nbs_error'):
+                elif st.session_state.get('bridges_error'):
                     st.warning(
-                        "⚠️ BRIDGES-NBS konnte nicht geladen werden: Das Tabellenblatt "
-                        "„BRIDGES-NBS“ fehlt in docs/Prospective_studies.xlsx oder hat nicht die "
-                        "Spalten „Gene“ und „Disorder“. BRIDGES-NBS wird für alle Gene als ✗ angezeigt."
-                        f"\n\nFehler: `{st.session_state.bridges_nbs_error}`"
+                        "⚠️ BRIDGES konnte nicht geladen werden: Das Tabellenblatt "
+                        "„BRIDGES“ fehlt in docs/Prospective_studies.xlsx oder hat nicht die "
+                        "Spalten „Gene“ und „Disorder“. BRIDGES wird für alle Gene als ✗ angezeigt."
+                        f"\n\nFehler: `{st.session_state.bridges_error}`"
                     )
                 study_html_parts = []
                 for s_idx, (study_name, disorder) in enumerate([
                     ('BabyScreen+',    studies['BabyScreen+'].get(gene, None)),
                     ('Guardian',       studies['Guardian'].get(gene, None)),
                     ('Generation Study', studies['Generation Study'].get(gene, None)),
-                    ('BRIDGES-NBS',    studies['BRIDGES-NBS'].get(gene, None))
+                    ('BRIDGES',        studies['BRIDGES'].get(gene, None))
                 ]):
                     if disorder:
                         icon, color = "✓", "#4CAF50"
