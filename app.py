@@ -1519,7 +1519,7 @@ if st.session_state.df is not None and st.session_state.review_started:
                     </style>
                     <div style='background-color:#f8f9fa; padding:8px; border-radius:5px;
                                 margin-bottom:15px; border:1px solid #e0e0e0;'>
-                    <span style='font-size:12px; font-weight:600; margin-right:10px;'>Prospektive Studien:</span>
+                    <span style='font-size:12px; font-weight:600; margin-right:10px;'>Prosp. Studien:</span>
                     {''.join(study_html_parts)}
                     </div>""", unsafe_allow_html=True)
 
