@@ -417,13 +417,9 @@ if st.session_state.disease_groups_list is None:
         groups_df = pd.read_csv(io.StringIO(groups_content))
         st.session_state.disease_groups_list = groups_df['Gruppe'].dropna().tolist()
     except Exception as e:
-        st.session_state.disease_groups_list = [
-            'metabolic', 'renal', 'endocrinology', 'immunology_rheumatology',
-            'neurology', 'oncology_hematology', 'pulmonology',
-            'tumor_predisposition', 'gastroenterology', 'otorhinolaryngology',
-            'ophthalmology', 'cardiology_neurology_oncology',
-            'oncology_immunology', 'cardiology'
-        ]
+        # docs/disease_groups.csv is the single source of truth (read locally first,
+        # then from GitHub via read_docs_file); no hardcoded copy to keep in sync.
+        st.session_state.disease_groups_list = []
 
 # Lade NBS/NGS2025 Overlap-Daten beim ersten Start
 if st.session_state.nbs_overlap is None:
